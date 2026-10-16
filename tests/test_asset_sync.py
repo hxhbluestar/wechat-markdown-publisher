@@ -170,7 +170,13 @@ class DraftAssetTests(unittest.TestCase):
         current = self.store.save(
             self.draft_id,
             markdown,
-            {**self.draft["metadata"], "cover": "cover.png", "wechat_account_id": ACCOUNT_ID},
+            {
+                **self.draft["metadata"],
+                "cover": "cover.png",
+                "wechat_account_id": ACCOUNT_ID,
+                "theme": "grace",
+                "font_size": 16,
+            },
             self.draft["revision"],
         )
         # Populate the canonical store as an import/upload would do.

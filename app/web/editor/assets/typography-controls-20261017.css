@@ -1,0 +1,10 @@
+.typography-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.typography-options label { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 11px; }
+.typography-options select { width: 100%; min-width: 0; height: 31px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--paper); font-size: 12px; }
+.preview-options { flex-wrap: wrap; }
+.preview-toolbar { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+.preview-tabs { flex: 0 0 auto; }
+.preview-tabs button,.preview-options label { white-space: nowrap; }
+.phone-stage { scroll-padding: 12px; }
+.wechat-preview,.reader-preview { box-sizing: border-box; }
+@media (max-width: 600px) { .typography-options { gap: 8px; padding: 10px 12px; } }

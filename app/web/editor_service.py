@@ -37,8 +37,15 @@ LOCAL_IMAGE_SRC = re.compile(
 )
 FORBIDDEN_HTML = re.compile(r"<(?:script|iframe|object|embed|form)\b", re.I)
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-ALLOWED_THEMES = {"default", "grace", "simple"}
+LEGACY_THEMES = {"default", "grace", "simple"}
+ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal"}
 ALLOWED_PALETTES = {"warm", "wechat", "blue", "red", "violet", "ink"}
+TYPOGRAPHY_VALUES = {
+    "font_family": {"theme", "sans", "serif"},
+    "font_size": {15, 16, 17, 18},
+    "code_wrap": {"scroll", "wrap"},
+    "table_mode": {"auto", "scroll", "cards"},
+}
 
 
 class EditorError(Exception):
@@ -110,6 +117,15 @@ def safe_asset_path(value: str) -> str:
     return clean
 
 
+def default_typography(theme: str) -> dict[str, Any]:
+    return {
+        "font_family": "theme",
+        "font_size": 16 if theme in LEGACY_THEMES else 17,
+        "code_wrap": "scroll",
+        "table_mode": "auto",
+    }
+
+
 def default_metadata(title: str = "") -> dict[str, Any]:
     return {
         "title": title[:64],
@@ -120,8 +136,9 @@ def default_metadata(title: str = "") -> dict[str, Any]:
         "need_open_comment": False,
         "only_fans_can_comment": False,
         "show_cover_pic": False,
-        "theme": "grace",
+        "theme": "technical",
         "palette": "warm",
+        **default_typography("technical"),
         "wechat_account_id": "",
     }
 
@@ -136,10 +153,17 @@ def normalize_metadata(value: Any, fallback_title: str = "") -> dict[str, Any]:
     metadata["need_open_comment"] = bool(source.get("need_open_comment"))
     metadata["only_fans_can_comment"] = bool(source.get("only_fans_can_comment"))
     metadata["show_cover_pic"] = bool(source.get("show_cover_pic"))
-    theme = str(source.get("theme") or "grace")
-    metadata["theme"] = theme if theme in ALLOWED_THEMES else "grace"
+    theme = str(source.get("theme") or "technical")
+    metadata["theme"] = theme if theme in ALLOWED_THEMES else "technical"
     palette = str(source.get("palette") or "warm")
     metadata["palette"] = palette if palette in ALLOWED_PALETTES else "warm"
+    for field, default in default_typography(metadata["theme"]).items():
+        candidate = source.get(field, default)
+        metadata[field] = (
+            candidate
+            if type(candidate) is type(default) and candidate in TYPOGRAPHY_VALUES[field]
+            else default
+        )
     account_id = str(source.get("wechat_account_id") or "").strip()
     if account_id and not WECHAT_ACCOUNT_ID.fullmatch(account_id):
         raise EditorError("公众号账号编号无效")
@@ -170,7 +194,15 @@ class DraftStore:
         return folder, folder / "article.md", folder / "draft.json", folder / "publish-state.json"
 
     def _revision(self, content: str, metadata: dict[str, Any]) -> str:
-        serial = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        revision_metadata = dict(metadata)
+        theme = str(metadata.get("theme") or "")
+        if theme in LEGACY_THEMES and all(
+            metadata.get(field) == value for field, value in default_typography(theme).items()
+        ):
+            # Equivalent legacy defaults retain historical save/sync revisions.
+            for field in TYPOGRAPHY_VALUES:
+                revision_metadata.pop(field, None)
+        serial = json.dumps(revision_metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return content_sha256(f"{content}\x00{serial}")
 
     def list(self) -> list[dict[str, Any]]:
@@ -567,6 +599,8 @@ class WechatPublisher:
         source_hash: str,
         theme: str,
         palette: str = "warm",
+        *,
+        typography: Any | None = None,
     ) -> tuple[dict[str, Any], bool]:
         draft = store.get(draft_id)
         if self.account_id and draft["metadata"].get("wechat_account_id") != self.account_id:
@@ -578,6 +612,20 @@ class WechatPublisher:
             raise EditorError("公众号版式或配色无效")
         if theme != draft["metadata"]["theme"] or palette != draft["metadata"]["palette"]:
             raise RevisionConflict()
+        effective_typography = {field: draft["metadata"][field] for field in TYPOGRAPHY_VALUES}
+        if typography is None and (
+            theme not in LEGACY_THEMES or effective_typography != default_typography(theme)
+        ):
+            raise EditorError("请刷新编辑器并重新保存排版选项后再同步", 409)
+        if typography is not None:
+            if not isinstance(typography, dict) or set(typography) != set(TYPOGRAPHY_VALUES):
+                raise EditorError("公众号排版选项无效")
+            for field, expected in effective_typography.items():
+                candidate = typography[field]
+                if type(candidate) is not type(expected) or candidate not in TYPOGRAPHY_VALUES[field]:
+                    raise EditorError("公众号排版选项无效")
+            if typography != effective_typography:
+                raise RevisionConflict()
         cover_path = self._validate(store, draft)
         if len(source_html.encode("utf-8")) > 5 * 1024 * 1024:
             raise EditorError("公众号排版结果过大")
@@ -622,6 +670,7 @@ class WechatPublisher:
                     "draft_revision": draft["revision"],
                     "theme": theme,
                     "palette": palette,
+                    "typography": effective_typography,
                     "synced_at": utc_now(),
                     "publish_status": "draft_synced",
                     "image_cache": image_cache,

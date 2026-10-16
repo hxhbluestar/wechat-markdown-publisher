@@ -1,10 +1,11 @@
 # 微信 Markdown 发布器
 
-在本机编辑 Markdown、管理图片与封面，并通过微信公众号官方接口同步到草稿箱。附带本地文章归档阅读器和公众号归档工具。界面保留现有“星河炸鸡”主题。
+在本机编辑 Markdown、管理图片与封面，并通过微信公众号官方接口同步到草稿箱。附带本地文章归档阅读器和公众号归档工具，保留现有“星河炸鸡”应用界面。
 
 ## 功能
 
 - Markdown 编辑、预览、本地保存和多个公众号账号管理。
+- 技术手册、纸感期刊、极简墨色三套文章版式，支持字体、字号、代码长行及表格模式，并提供 320/375/430px 手机宽度预览。见 [排版说明](docs/typography.md)。
 - 本地图片上传、封面选择、同步前缺图检查，兼容导入文档的相对图片目录。
 - 同步至微信公众号草稿箱，支持复用已同步草稿。
 - 可选直接发布，默认关闭。
@@ -36,17 +37,20 @@ python -m pip install -r requirements-archive.txt
 
 ## 测试和构建
 
-Node.js 用于运行前端模块测试；当前网页资源已经随源码提供。
+Node.js 用于运行前端模块与 DOM 回归测试；当前网页资源已经随源码提供。使用锁文件安装测试依赖后运行：
 
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
-node --test tests/asset-paths.test.mjs
+npm ci
+npm test
 python tools/build_frontend.py
-node --check app/web/editor/assets/index-20261014-imagefix.js
+node --check app/web/editor/assets/index-20261017-typography.js
+node --check app/web/editor/assets/typography-20261017.mjs
+node --check app/web/editor/assets/typography-controls-20261017.mjs
 node --check app/web/editor/assets/company-network-20261016.mjs
 ```
 
-包含 20 项 Python 回归测试、8 项 Node 测试，测试不调用真实微信接口。
+包含 42 项 Python 回归测试、34 项 Node 测试，测试不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。
 
 ## 代码结构
 
@@ -54,9 +58,9 @@ node --check app/web/editor/assets/company-network-20261016.mjs
 | --- | --- |
 | `app/web/` | Python 后端、阅读器与编辑器网页 |
 | `app/modules/`、`app/main.py` | 浏览器登录和文章归档组件 |
-| `frontend/` | 可读的图片路径/网络状态模块与页面模板 |
+| `frontend/` | 可读的排版、控件、图片路径、网络状态模块与页面模板 |
 | `tools/build_frontend.py` | 从保存的前端产物生成可重现补丁 |
-| `tests/` | 图片同步、路径安全、固定出口保护回归 |
+| `tests/` | 排版、同步、路径安全、固定出口保护和隔离部署回归 |
 | `scripts/`、`packaging/` | Windows 安装版生命周期与打包脚本 |
 
 目前保留了编辑器已编译的前端资源和严格匹配的补丁构建工具；尚未恢复完整的上游 TypeScript 工程。因此不能将本仓库视为可从 TypeScript 重建所有前端依赖的完整工程。

@@ -36,10 +36,12 @@ from editor_service import (
     load_environment_file,
 )
 from archive_service import ArchiveTaskError, ArchiveTaskManager
+from editor_security import import_map_csp
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = Path(__file__).resolve().parent
+EDITOR_IMPORT_MAP_CSP = import_map_csp(WEB_DIR / 'editor' / 'index.html')
 ARCHIVE_DIR = Path(
     os.environ.get(
         "WECHAT_ARCHIVE_DIR",
@@ -1114,7 +1116,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith("/editor"):
             policy = (
                 "default-src 'self'; img-src 'self' data: blob:; media-src 'self'; "
-                "style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
+                f"style-src 'self' 'unsafe-inline'; script-src 'self'{EDITOR_IMPORT_MAP_CSP}; connect-src 'self'; "
                 "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
             )
         else:
@@ -1311,6 +1313,7 @@ class Handler(SimpleHTTPRequestHandler):
                     str(payload.get("source_hash") or ""),
                     str(payload.get("theme") or "grace"),
                     str(payload.get("palette") or "warm"),
+                    typography=payload.get("typography"),
                 )
                 return self.send_json({"draft": draft, "created": created})
 
