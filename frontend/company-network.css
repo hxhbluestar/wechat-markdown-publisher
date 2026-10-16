@@ -1,0 +1,9 @@
+body { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+#app { min-height: 0; }
+#company-network-strip { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 16px; background: #f2efe9; border-top: 1px solid #ded9cf; color: #625b51; font-size: 12px; }
+#company-network-strip[data-state="blocked"] { background: #fff0e9; color: #9a3412; }
+#company-network-strip[data-state="verified"] { background: #ecf6ee; color: #245f3d; }
+#company-network-text { min-width: 0; overflow-wrap: anywhere; }
+#company-network-check { flex: none; padding: 4px 10px; border: 1px solid currentColor; border-radius: 6px; color: inherit; background: transparent; }
+#company-network-check:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 600px) { #company-network-strip { padding: 6px 10px; font-size: 11px; } }

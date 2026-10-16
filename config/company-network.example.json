@@ -1,0 +1,7 @@
+{
+  "mode": "company_direct",
+  "expected_public_ip": "YOUR_FIXED_PUBLIC_IPV4",
+  "interface_alias": "WLAN",
+  "gateway": "YOUR_LOCAL_GATEWAY",
+  "interface_guid": ""
+}

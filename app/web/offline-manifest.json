@@ -1,0 +1,42 @@
+{
+  "name": "星河炸鸡 · 本地内容归档",
+  "runtime_network_required": false,
+  "network_required_for": [
+    "wechat_sync",
+    "wechat_publish_status"
+  ],
+  "entrypoint": "start.sh",
+  "local_assets": [
+    "index.html",
+    "app.js",
+    "style.css",
+    "md-content.css",
+    "highlight.min.js",
+    "highlight.css",
+    "logo.png",
+    "editor/"
+  ],
+  "local_data": [
+    "article-type-overrides.json",
+    "article-image-exclusions.json",
+    "article-image-placements.json",
+    "article-image-placements.generated.json",
+    "image-placement-report.json",
+    "../knowledge_base/drafts/"
+  ],
+  "python_wheels": [
+    {
+      "name": "markdown-it-py",
+      "version": "4.0.0",
+      "file": "vendor/wheels/markdown_it_py-4.0.0-py3-none-any.whl",
+      "sha256": "87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147"
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "file": "vendor/wheels/mdurl-0.1.2-py3-none-any.whl",
+      "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"
+    }
+  ],
+  "external_links_are_optional": true
+}

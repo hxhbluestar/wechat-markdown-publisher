@@ -1,0 +1,34 @@
+# Local runtime and user content are maintained outside this repository.
+**/__pycache__/
+*.py[cod]
+**/data/
+**/private/
+**/logs/
+**/runtime/
+*.log
+*.pkl
+*.db
+.env
+.env.*
+**/wechat-accounts*.json
+**/*cookies*.json
+**/*cookies*.pkl
+*.pem
+*.key
+node_modules/
+.venv/
+.pytest_cache/
+tests/.publisher-asset-test-*/
+releases/
+
+
+# Local archive, account configuration and generated content
+**/knowledge_base/
+**/output/
+**/cookie_cache/
+**/.cache/
+**/wechat.env
+config.yaml
+config.yml
+app/config.yaml
+app/config.yml

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="星河炸鸡公众号文章本地离线归档阅读器">
+  <title>星河炸鸡 · 内容归档</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="style.css?v=20260802-masonry2">
+  <link rel="stylesheet" href="md-content.css">
+  <link rel="stylesheet" href="highlight.css">
+  <script src="highlight.min.js" defer></script>
+  <script src="app.js?v=20260802-masonry2" defer></script>
+</head>
+<body>
+  <progress class="reading-progress" id="readingProgress" max="100" value="0" aria-label="阅读进度"></progress>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="主导航">
+      <button class="brand" type="button" data-route="home" aria-label="返回总览">
+        <img src="logo.png" alt="" width="44" height="44">
+        <span>
+          <strong>星河炸鸡</strong>
+          <small>本地内容归档</small>
+        </span>
+      </button>
+
+      <nav class="primary-nav" id="primaryNav">
+        <p class="nav-eyebrow">阅览</p>
+        <button type="button" class="nav-item is-active" data-route="home">
+          <span class="nav-symbol">⌂</span><span>总览</span>
+        </button>
+        <button type="button" class="nav-item" data-route="articles">
+          <span class="nav-symbol">文</span><span>全部文章</span>
+          <span class="nav-count" id="articleCount">—</span>
+        </button>
+        <button type="button" class="nav-item" data-route="images">
+          <span class="nav-symbol">图</span><span>图片</span>
+          <span class="nav-count" id="imageCount">—</span>
+        </button>
+        <button type="button" class="nav-item" data-route="audio">
+          <span class="nav-symbol">声</span><span>音频</span>
+          <span class="nav-count" id="audioCount">—</span>
+        </button>
+        <button type="button" class="nav-item" data-route="videos">
+          <span class="nav-symbol">影</span><span>视频</span>
+          <span class="nav-count" id="videoCount">—</span>
+        </button>
+        <p class="nav-eyebrow nav-eyebrow-section">创作</p>
+        <button type="button" class="nav-item" data-action="open-editor">
+          <span class="nav-symbol">✎</span><span>Markdown 编辑器</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="offline-dot"></span>
+        <span>全部内容来自本地归档</span>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="quiet-button theme-button" id="themeButton" type="button">
+          <span id="themeIcon">◐</span>
+          <span id="themeLabel">跟随系统</span>
+        </button>
+      </div>
+    </aside>
+
+    <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="关闭导航"></button>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-leading">
+          <button class="icon-button mobile-only" id="menuButton" type="button" aria-label="打开导航">☰</button>
+          <div>
+            <p class="topbar-kicker" id="pageKicker">本地内容归档</p>
+            <h1 class="topbar-title" id="pageTitle">总览</h1>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="font-stepper" id="fontStepper" aria-label="正文字号">
+            <button type="button" id="fontDown" aria-label="减小正文字号">A−</button>
+            <span id="fontValue">17</span>
+            <button type="button" id="fontUp" aria-label="增大正文字号">A+</button>
+          </div>
+          <button class="search-trigger" id="searchTrigger" type="button">
+            <span>⌕</span>
+            <span class="search-label">搜索标题与正文</span>
+            <kbd>⌘ K</kbd>
+          </button>
+        </div>
+      </header>
+
+      <main class="main-scroll" id="mainScroll" tabindex="-1">
+        <div class="page-root" id="pageRoot" aria-live="polite">
+          <div class="page-loading">
+            <span class="loading-mark"></span>
+            <p>正在整理本地记忆…</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="search-dialog" id="searchDialog" aria-labelledby="searchHeading">
+    <div class="search-panel">
+      <div class="search-input-row">
+        <span class="search-glyph" aria-hidden="true">⌕</span>
+        <label class="sr-only" id="searchHeading" for="searchInput">搜索标题与正文</label>
+        <input id="searchInput" type="search" autocomplete="off" placeholder="输入标题、正文关键词…">
+        <button class="icon-button" id="searchClose" type="button" aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-hint">
+        <span>全文本地检索</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Enter</kbd> 打开</span>
+      </div>
+      <div class="search-results" id="searchResults">
+        <div class="empty-state compact">
+          <span class="empty-symbol">⌕</span>
+          <p>输入关键词，重遇某段文字</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="lightbox-dialog" id="lightboxDialog" aria-label="图片预览">
+    <div class="lightbox-toolbar">
+      <span id="lightboxCounter">1 / 1</span>
+      <div>
+        <a class="lightbox-action" id="lightboxDownload" href="#" download>下载原图</a>
+        <button class="lightbox-action" id="lightboxClose" type="button">关闭</button>
+      </div>
+    </div>
+    <button class="lightbox-arrow prev" id="lightboxPrev" type="button" aria-label="上一张">‹</button>
+    <figure class="lightbox-stage">
+      <img id="lightboxImage" src="" alt="">
+      <figcaption id="lightboxCaption"></figcaption>
+    </figure>
+    <button class="lightbox-arrow next" id="lightboxNext" type="button" aria-label="下一张">›</button>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
