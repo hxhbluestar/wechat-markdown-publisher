@@ -22,12 +22,53 @@ export function normalizeTypography(settings, theme = 'technical') {
 }
 
 const THEMES = {
-  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#2c3d55', label: '#a9c0dc', keyword: '#c2b4ff', string: '#a9dcc3', comment: '#9aacc4', number: '#f0c899', fn: '#95c8ff', addition: '#b4e5c5', deletion: '#ffb3b8' },
-  journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#7c7061', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451', keyword: '#744196', string: '#376d50', comment: '#6d665b', number: '#985934', fn: '#236e85', addition: '#27633f', deletion: '#a33e3e' },
-  minimal: { paper: '#ffffff', ink: '#25272b', secondary: '#666b73', accent: '#3c4653', rule: '#dfe2e7', tint: '#f2f4f6', code: '#f2f4f6', codeInk: '#313b48', codeRule: '#dce1e8', label: '#657082', keyword: '#805292', string: '#3f7358', comment: '#656d77', number: '#946233', fn: '#356181', addition: '#27633f', deletion: '#a33e3e' },
-  obsidian: { dark: true, darkCode: true, paper: '#111b22', ink: '#e6edf3', secondary: '#abbcc6', accent: '#69d7c1', rule: '#344b58', tint: '#1c313b', code: '#0b141c', codeInk: '#e5eff5', codeRule: '#2b424f', label: '#b3c8d5', keyword: '#d8bcff', string: '#a5e2c6', comment: '#a4b8c5', number: '#f5c99d', fn: '#9dd6ff', addition: '#b4e5c5', deletion: '#ffb9c0' },
-  deepsea: { darkCode: true, paper: '#f1f8f8', ink: '#15383d', secondary: '#4c6c73', accent: '#136b76', rule: '#cbdfe1', tint: '#e3f1f0', code: '#102e35', codeInk: '#e4f2f0', codeRule: '#2b4d55', label: '#aed1d1', keyword: '#c5bbfa', string: '#a9e3c8', comment: '#a2bec3', number: '#f4ce9d', fn: '#8ed6e5', addition: '#ace1c2', deletion: '#ffbac0' },
-  teal: { paper: '#ffffff', ink: '#183b36', secondary: '#55736b', accent: '#13745d', rule: '#cce0d9', tint: '#edf7f2', code: '#e9f5ef', codeInk: '#1d4237', codeRule: '#c3ded0', label: '#4b6f60', keyword: '#715093', string: '#256a48', comment: '#526e63', number: '#8a542d', fn: '#176c7a', addition: '#236442', deletion: '#9a3c42' },
+  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#2c3d55', label: '#a9c0dc' },
+  journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#7c7061', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451' },
+  minimal: { paper: '#ffffff', ink: '#25272b', secondary: '#666b73', accent: '#3c4653', rule: '#dfe2e7', tint: '#f2f4f6', code: '#f2f4f6', codeInk: '#313b48', codeRule: '#dce1e8', label: '#657082' },
+  obsidian: { dark: true, darkCode: true, paper: '#111b22', ink: '#e6edf3', secondary: '#abbcc6', accent: '#69d7c1', rule: '#344b58', tint: '#1c313b', code: '#0b141c', codeInk: '#e5eff5', codeRule: '#2b424f', label: '#b3c8d5' },
+  deepsea: { darkCode: true, paper: '#f1f8f8', ink: '#15383d', secondary: '#4c6c73', accent: '#136b76', rule: '#cbdfe1', tint: '#e3f1f0', code: '#102e35', codeInk: '#e4f2f0', codeRule: '#2b4d55', label: '#aed1d1' },
+  teal: { paper: '#ffffff', ink: '#183b36', secondary: '#55736b', accent: '#13745d', rule: '#cce0d9', tint: '#edf7f2', code: '#e9f5ef', codeInk: '#1d4237', codeRule: '#c3ded0', label: '#4b6f60' },
+};
+
+// Semantic syntax colors are independent of article accents. Keep hue roles
+// consistent between papers, with separate values for dark and light code.
+const CODE_COLORS = {
+  technical: {
+    keyword: '#c792ff', decorator: '#ff91c6', string: '#a1e0b0',
+    number: '#ffb78a', literal: '#ff9a99', type: '#f1d887',
+    fn: '#8fc7ff', api: '#6edbd5', variable: '#becbff', attribute: '#e8c790',
+    operator: '#adbed6', comment: '#95a7c0', addition: '#b4e5c5', deletion: '#ffb3b8',
+  },
+  journal: {
+    keyword: '#7441a8', decorator: '#a12a78', string: '#28613b',
+    number: '#a24817', literal: '#a33248', type: '#805b09',
+    fn: '#165caa', api: '#006b67', variable: '#4e59a0', attribute: '#855918',
+    operator: '#596678', comment: '#716b61', addition: '#27633f', deletion: '#a33e3e',
+  },
+  minimal: {
+    keyword: '#6f42a3', decorator: '#a12f7e', string: '#276c42',
+    number: '#a24b1e', literal: '#ab364e', type: '#7a5a09',
+    fn: '#1d5ca8', api: '#006d70', variable: '#5356a0', attribute: '#875826',
+    operator: '#526275', comment: '#626c78', addition: '#27633f', deletion: '#a33e3e',
+  },
+  obsidian: {
+    keyword: '#c7a1ff', decorator: '#ff99cd', string: '#9fdfb8',
+    number: '#ffbc94', literal: '#ffaaaa', type: '#edda98',
+    fn: '#9dccff', api: '#72ddd0', variable: '#b4c9ff', attribute: '#e4c79a',
+    operator: '#b8c8d5', comment: '#a1b3c2', addition: '#b4e5c5', deletion: '#ffb9c0',
+  },
+  deepsea: {
+    keyword: '#d2b6ff', decorator: '#ffa4ce', string: '#a8e7af',
+    number: '#ffc493', literal: '#ffb1b4', type: '#f4df91',
+    fn: '#a4d3ff', api: '#82e4d8', variable: '#c5ceff', attribute: '#e9d09a',
+    operator: '#b4cbd2', comment: '#a2bec3', addition: '#ace1c2', deletion: '#ffbac0',
+  },
+  teal: {
+    keyword: '#7041a0', decorator: '#9e2c79', string: '#24623d',
+    number: '#954719', literal: '#a3314c', type: '#775609',
+    fn: '#205ba0', api: '#00696a', variable: '#505899', attribute: '#805528',
+    operator: '#4f6570', comment: '#526e63', addition: '#236442', deletion: '#9a3c42',
+  },
 };
 
 // Paper and syntax palettes belong to the layout; the user's color selection
@@ -91,7 +132,7 @@ function typographyCSS(settings, theme, fresh, palette) {
   }
   const palettes = THEMES[theme].dark ? DARK_PALETTES : PALETTES;
   const selected = Object.hasOwn(palettes, palette) ? palettes[palette] : null;
-  const c = { ...THEMES[theme], ...selected };
+  const c = { ...THEMES[theme], ...CODE_COLORS[theme], ...selected };
   const accentLine = c.accentLine || c.accent;
   const headingLine = selected ? accentLine : c.rule;
   css += rule('', { color: c.ink, background: c.paper, padding: c.dark ? '18px 16px' : '8px 0', 'max-width': '100%', 'box-sizing': 'border-box' });
@@ -125,14 +166,22 @@ function typographyCSS(settings, theme, fresh, palette) {
   css += rule('.wx-code-text', { display: 'block', margin: '0', padding: '0', background: 'transparent', color: c.codeInk, border: '0', 'border-radius': '0', 'font-family': MONO, 'font-size': '14px', 'line-height': '1.75', 'font-variant-ligatures': 'none', 'letter-spacing': '0', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'text-align': 'left', 'tab-size': '4', 'text-shadow': 'none' });
   const tokenGroups = [
     ['.hljs-comment,.hljs-quote', c.comment],
-    ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag,.hljs-meta', c.keyword],
-    ['.hljs-string,.hljs-regexp,.hljs-attribute,.hljs-meta .hljs-string', c.string],
-    ['.hljs-number,.hljs-literal,.hljs-type,.hljs-symbol,.hljs-bullet', c.number],
-    ['.hljs-title,.hljs-section,.hljs-name,.hljs-built_in,.hljs-attr,.hljs-selector-id,.hljs-selector-class,.hljs-link', c.fn],
-    ['.hljs-variable,.hljs-template-variable,.hljs-subst,.hljs-operator,.hljs-punctuation', c.codeInk],
+    ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag', c.keyword],
+    ['.hljs-meta', c.decorator],
+    ['.hljs-string,.hljs-regexp,.hljs-meta .hljs-string', c.string],
+    ['.hljs-number,.hljs-symbol,.hljs-bullet', c.number],
+    ['.hljs-literal', c.literal],
+    ['.hljs-title,.hljs-section,.hljs-name,.hljs-selector-id,.hljs-selector-class,.hljs-link', c.fn],
+    ['.hljs-type,.hljs-title.class_', c.type],
+    ['.hljs-built_in', c.api],
+    ['.hljs-attr,.hljs-attribute', c.attribute],
+    ['.hljs-variable,.hljs-template-variable,.hljs-params', c.variable],
+    ['.hljs-subst', c.codeInk],
+    ['.hljs-operator,.hljs-punctuation', c.operator],
     ['.hljs-addition', c.addition], ['.hljs-deletion', c.deletion],
   ];
   for (const [tokens, color] of tokenGroups) css += rule(tokens, { color });
+  css += rule('.hljs-title.function_,.hljs-function .hljs-title', { 'font-weight': '600' });
   css += rule('.hljs-comment,.hljs-quote', { 'font-style': 'normal' });
   css += rule('.hljs-emphasis', { 'font-style': 'italic' });
   css += rule('.hljs-strong', { 'font-weight': '700' });

@@ -9,6 +9,23 @@ try {
   const script=new DOMParser().parseFromString(entry,'text/html').querySelector('script[type="module"][crossorigin]');
   const renderer=await import(script.getAttribute('src'));
   for(const theme of ['technical','journal','minimal','obsidian','deepsea','teal']) {
+    // Verify the distinction on the actual publishing HTML, after class removal.
+    const rich='import torch\n@torch.no_grad()\ndef infer(x: torch.Tensor, enabled=True):\n    label = "ROCm"\n    # Keep inference numerically stable\n    return torch.softmax(x / 0.5, dim=-1)\n';
+    const richPreview=renderer.previewWechatArticle(fence('python',rich),theme,'blue',{});
+    const parsed=new DOMParser().parseFromString(richPreview.html,'text/html');
+    const richHost=document.createElement('article');richHost.innerHTML=renderer.exportWechatArticle(fence('python',rich),theme,'blue',{});document.body.append(richHost);
+    const originalTokens=[...parsed.querySelectorAll('pre code span')],publishedTokens=[...richHost.querySelectorAll('pre code span')];
+    const roleColors={};
+    for(const [role,selector] of Object.entries({keyword:'.hljs-keyword',decorator:'.hljs-meta',string:'.hljs-string',number:'.hljs-number',literal:'.hljs-literal',type:'.hljs-type',function:'.hljs-title.function_',api:'.hljs-built_in',parameter:'.hljs-params',comment:'.hljs-comment'})) {
+      const token=parsed.querySelector('pre code '+selector),published=publishedTokens[originalTokens.indexOf(token)];
+      check(!!token&&published?.textContent===token.textContent,theme+'/'+role+' survives inline publishing');
+      roleColors[role]=getComputedStyle(published).color;
+    }
+    check(new Set(Object.values(roleColors)).size>=9,theme+' has at least nine distinct semantic colors');
+    check(roleColors.function!==roleColors.api&&roleColors.keyword!==roleColors.decorator&&roleColors.type!==roleColors.number,theme+' separates function/API, keyword/decorator and type/number');
+    check(Object.values(roleColors).every(color=>contrast(color,getComputedStyle(richHost.querySelector('pre')).backgroundColor)>=4.5),theme+' rich semantic colors remain readable');
+    check(richHost.querySelector('pre code').textContent===rich,theme+' rich colors do not change code text');
+    richHost.remove();
     for(const [lang,code] of Object.entries(CODE_SAMPLES)) {
       const markdown=fence(lang,code),options={code_wrap:'scroll'};
       const preview=renderer.previewWechatArticle(markdown,theme,'blue',options);
@@ -18,6 +35,13 @@ try {
       check(output.textContent===code,theme+'/'+lang+' original characters survive real export');
       check(!host.querySelector('[class],script,style,button,iframe'),theme+'/'+lang+' colors do not depend on classes or scripts');
       check(tokens.length>0,theme+'/'+lang+' tokens survive inline export');
+      if(['python','tilelang','triton','cpp','hip','cuda'].includes(lang)) {
+        const parsedCode=new DOMParser().parseFromString(preview.html,'text/html');
+        const sourceSpans=[...parsedCode.querySelectorAll('pre code span')];
+        const functionTitle=parsedCode.querySelector('.hljs-title.function_,.hljs-function .hljs-title');
+        const publishedTitle=[...output.querySelectorAll('span')][sourceSpans.indexOf(functionTitle)];
+        check(!!publishedTitle&&Number(getComputedStyle(publishedTitle).fontWeight)>=600,theme+'/'+lang+' function names remain emphasized in publishing HTML');
+      }
       check(new DOMParser().parseFromString(preview.html,'text/html').querySelector('pre code').textContent===code,theme+'/'+lang+' preview and export agree');
       check(getComputedStyle(output).fontSize==='14px'&&getComputedStyle(pre).tabSize==='4',theme+'/'+lang+' readable code size and tabs');
       const bg=getComputedStyle(pre).backgroundColor;

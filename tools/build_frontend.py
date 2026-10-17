@@ -60,28 +60,28 @@ for before, after in changes:
         raise RuntimeError(f'Expected exactly one frontend match, found {count}: {before[:100]}')
     source = source.replace(before, after, 1)
 source = 'import { canonicalAssetPath, imageUploadTarget, missingImagePaths } from "./asset-paths-20261014.mjs";\n' + source
-source = ('import { prepareTypography, typographyAccent, escapeHtmlAttribute } from "./typography-20261017-code.mjs";\n'
-          'import { connectTypographyControls, typographyControlsMarkup, themeOptionsMarkup } from "./typography-controls-20261017-code.mjs";\n'
+source = ('import { prepareTypography, typographyAccent, escapeHtmlAttribute } from "./typography-20261017-colors.mjs";\n'
+          'import { connectTypographyControls, typographyControlsMarkup, themeOptionsMarkup } from "./typography-controls-20261017-colors.mjs";\n'
           'import { connectRocmImport, rocmImportMarkup } from "./rocm-import-20261017.mjs";\n' + source)
 source += '\nexport { eM as previewWechatArticle, tM as exportWechatArticle };\n'
-(assets / 'index-20261017-code.js').write_text(source, encoding='utf-8', newline='')
+(assets / 'index-20261017-colors.js').write_text(source, encoding='utf-8', newline='')
 page = (root / 'frontend' / 'index.template.html').read_text('utf-8')
 entry = 'src="/editor/assets/index-CIPbZpsp.js"'
 if page.count(entry) != 1:
     raise RuntimeError('Unexpected editor entry point')
 (root / 'app' / 'web' / 'editor' / 'index.html').write_text(
-    page.replace(entry, 'src="/editor/assets/index-20261017-code.js"'), encoding='utf-8', newline=''
+    page.replace(entry, 'src="/editor/assets/index-20261017-colors.js"'), encoding='utf-8', newline=''
 )
 shutil.copyfile(root / 'frontend' / 'asset-paths.mjs', assets / 'asset-paths-20261014.mjs')
 for extension in ('mjs', 'css'):
     shutil.copyfile(root / 'frontend' / f'company-network.{extension}', assets / f'company-network-20261016.{extension}')
-shutil.copyfile(root / 'frontend/typography.mjs', assets / 'typography-20261017-code.mjs')
-shutil.copyfile(root / 'frontend/typography-controls.css', assets / 'typography-controls-20261017-code.css')
+shutil.copyfile(root / 'frontend/typography.mjs', assets / 'typography-20261017-colors.mjs')
+shutil.copyfile(root / 'frontend/typography-controls.css', assets / 'typography-controls-20261017-colors.css')
 shutil.copyfile(root / 'frontend/rocm-import.mjs', assets / 'rocm-import-20261017.mjs')
 controls = (root / 'frontend/typography-controls.mjs').read_text('utf-8')
 if controls.count("'./typography.mjs'") != 1:
     raise RuntimeError('Unexpected typography controls import')
-(assets / 'typography-controls-20261017-code.mjs').write_text(
-    controls.replace("'./typography.mjs'", "'./typography-20261017-code.mjs'"), encoding='utf-8', newline='')
+(assets / 'typography-controls-20261017-colors.mjs').write_text(
+    controls.replace("'./typography.mjs'", "'./typography-20261017-colors.mjs'"), encoding='utf-8', newline='')
 shutil.copyfile(root / 'frontend/code-languages.js', root / 'app/web/vendor/highlight-ai-20261017.js')
 print(f'Frontend patch built with {len(changes)} unique replacements')

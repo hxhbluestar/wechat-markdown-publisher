@@ -47,13 +47,13 @@ python -m unittest discover -s tests -p "test_*.py" -v
 npm ci
 npm test
 python tools/build_frontend.py
-node --check app/web/editor/assets/index-20261017-code.js
-node --check app/web/editor/assets/typography-20261017-code.mjs
-node --check app/web/editor/assets/typography-controls-20261017-code.mjs
+node --check app/web/editor/assets/index-20261017-colors.js
+node --check app/web/editor/assets/typography-20261017-colors.mjs
+node --check app/web/editor/assets/typography-controls-20261017-colors.mjs
 node --check app/web/editor/assets/company-network-20261016.mjs
 ```
 
-测试覆盖后端元数据、同步校验、图片路径、编辑器安全、前端排版与控件，不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。构建会同时生成 `typography-controls-20261017-code.css`。
+测试覆盖后端元数据、同步校验、图片路径、编辑器安全、前端排版与控件，不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。构建会同时生成 `typography-controls-20261017-colors.css`。
 
 ## 代码结构
 

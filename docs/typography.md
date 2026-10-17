@@ -78,11 +78,11 @@ Apple 尺寸参考 [Apple 布局规范](https://developer.apple.com/cn/design/hu
 
 维护接口共六个字段：`font_family`（`theme/sans/serif`）、`font_size`（整数 `15/16/17/18`）、`caption_font_size`（整数 `12/13/14/15/16`）、`table_font_size`（整数 `12/13/14/15/16`）、`code_wrap`（`scroll/wrap`）、`table_mode`（`auto/scroll/cards`）。新增两项对新六主题默认 `12/13`，对旧三版式默认 `13/16`。缺省元数据对新主题使用 17px 正文、代码横滑及表格自动适配；编辑器切换版式时可应用上表中的推荐组合。
 
-本版资源入口为 `index-20261017-code.js`，排版模块为 `typography-20261017-code.mjs`，控件资源为 `typography-controls-20261017-code.mjs` 与 `typography-controls-20261017-code.css`，对应版本 `2026.10.17-code.5`。
+本版资源入口为 `index-20261017-colors.js`，排版模块为 `typography-20261017-colors.mjs`，控件资源为 `typography-controls-20261017-colors.mjs` 与 `typography-controls-20261017-colors.css`，对应版本 `2026.10.17-colors.6`。
 
 ## AI 与 GPU 代码高亮
 
-代码使用本地 Highlight.js 11.11.1，新增基于 Python/C++ 语法的 AI/GPU 扩展及官方 Dockerfile、CMake、LLVM IR 模块，无需联网加载。四套常用版式采用 14px 等宽代码、12px 语言栏、细边框，并分别适配深浅底色。关键字、装饰器、字符串、数值/类型、函数/API、注释分层着色。
+代码使用本地 Highlight.js 11.11.1，新增基于 Python/C++ 语法的 AI/GPU 扩展及官方 Dockerfile、CMake、LLVM IR 模块，无需联网加载。四套常用版式采用 14px 等宽代码、12px 语言栏、细边框，并分别适配深浅底色。代码配色细分关键字、装饰器、字符串、数字、布尔/常量、类型、函数、内置 API、变量/参数、属性、运算符和注释；函数名加粗。蓝色函数、青色 API、金色类型、粉色装饰器、橙色数字与绿色字符串在各版式保持一致的色彩角色，深浅底色分别调节明度，避免语义类别共用一种颜色。
 
 在 Markdown 的三个反引号后填写语言：
 
