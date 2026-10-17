@@ -12,6 +12,7 @@ const { document } = parseHTML('<html><body></body></html>');
 function render(html, settings = {}, hljs = highlighter) {
   const result = prepareTypography(html, { theme: 'technical', ...settings }, document, hljs);
   const holder = document.createElement('div');
+  holder.id = 'output';
   holder.innerHTML = result.html;
   return { ...result, holder };
 }
@@ -27,13 +28,172 @@ function computedRule(css, selector, property) {
   return value;
 }
 
+function resolvedRule(css, element, property) {
+  let winner;
+  let order = 0;
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const selector of selectors.split(',').map((value) => value.trim())) {
+      if (!element.matches(selector)) continue;
+      const weight = [(selector.match(/#[\w-]+/g) || []).length, (selector.match(/\.[\w-]+/g) || []).length, selector.split(/\s+/).filter((part) => /^[a-z][\w-]*/i.test(part)).length];
+      for (const declaration of body.split(';')) {
+        const colon = declaration.indexOf(':');
+        if (declaration.slice(0, colon).trim() !== property) continue;
+        const raw = declaration.slice(colon + 1).trim();
+        const candidate = { value: raw.replace(/\s*!important\s*$/, ''), weight: [/!important\s*$/.test(raw) ? 1 : 0, ...weight, order++] };
+        if (!winner || candidate.weight.some((value, index) => value !== winner.weight[index] && candidate.weight.slice(0, index).every((prior, priorIndex) => prior === winner.weight[priorIndex]) && value > winner.weight[index])) winner = candidate;
+      }
+    }
+  }
+  return winner?.value;
+}
+
 test('only safe typography options survive normalization and legacy gets its original size', () => {
-  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto' });
-  for (const theme of ['technical', 'journal', 'minimal']) assert.equal(normalizeTypography(null, theme).font_size, 17);
+  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
+  for (const theme of ['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']) assert.equal(normalizeTypography(null, theme).font_size, 17);
   for (const theme of ['default', 'grace', 'simple', 'classic']) assert.equal(normalizeTypography({}, theme).font_size, 16);
-  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_wrap: 'wrap', table_mode: 'cards' });
-  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto' });
+  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_wrap: 'wrap', table_mode: 'cards', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
   assert.equal(normalizeTypography({ font_size: true }).font_size, 17);
+});
+
+test('caption and table sizes accept only integer sizes from 12 through 16', () => {
+  for (const size of [12, 13, 14, 15, 16]) {
+    const value = normalizeTypography({ caption_font_size: String(size), table_font_size: size });
+    assert.equal(value.caption_font_size, size);
+    assert.equal(value.table_font_size, size);
+  }
+  for (const size of [0, 11, 17, 12.5, true, [], '12px', '12; color:red']) {
+    const value = normalizeTypography({ caption_font_size: size, table_font_size: size });
+    assert.equal(value.caption_font_size, 12);
+    assert.equal(value.table_font_size, 13);
+  }
+});
+
+test('legacy detail defaults match its original appearance while explicit 12px controls take effect', () => {
+  const html = '<figure><img src="a.png"><figcaption><p>旧说明</p></figcaption></figure><table><tr><th>项目</th><th>值</th></tr><tr><td>旧表格</td><td>value</td></tr></table>';
+  for (const theme of ['default', 'grace', 'simple']) {
+    const defaults = normalizeTypography({}, theme);
+    assert.equal(defaults.caption_font_size, 13);
+    assert.equal(defaults.table_font_size, 16);
+    assert.deepEqual(prepareTypography(html, { theme }, document, highlighter), { html, css: '' });
+    assert.deepEqual(prepareTypography(html, { theme, caption_font_size: 13, table_font_size: 16 }, document, highlighter), { html, css: '' });
+    const selected = render(html, { theme, caption_font_size: 12, table_font_size: 12 });
+    assert.equal(computedRule(selected.css, '#output .wx-typography figcaption', 'font-size'), '12px');
+    assert.equal(computedRule(selected.css, '#output .wx-typography td', 'font-size'), '12px');
+  }
+});
+
+function contrast(first, second) {
+  const luminance = (hex) => {
+    assert.match(hex || '', /^#[0-9a-f]{6}$/i, 'A readable theme must expose explicit six-digit colors');
+    const channels = hex.slice(1).match(/../g).map((part) => parseInt(part, 16) / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const values = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
+test('AMD laboratory themes have distinct paper, heading and quote profiles with readable code', () => {
+  const html = '<h1>AMD 实验室</h1><h2>实验条件</h2><p>正文 <a href="https://example.com">链接</a></p><blockquote><p>实验口径</p></blockquote><pre><code class="language-python"># 注释\nreturn "ok"</code></pre>';
+  const profiles = [
+    { theme: 'obsidian', paper: '#111b22', ink: '#e6edf3', code: '#0b141c' },
+    { theme: 'deepsea', paper: '#f1f8f8', ink: '#15383d', code: '#102e35' },
+    { theme: 'teal', paper: '#ffffff', ink: '#183b36', code: '#e9f5ef' },
+  ];
+  const headings = [];
+  for (const profile of profiles) {
+    const { holder, css } = render(html, { theme: profile.theme });
+    assert.ok(holder.querySelector(`.wx-theme-${profile.theme}`));
+    assert.match(computedRule(css, '#output .wx-typography', 'font-family'), /sans-serif/);
+    assert.equal(computedRule(css, '#output .wx-typography', 'background'), profile.paper);
+    assert.equal(computedRule(css, '#output .wx-typography', 'color'), profile.ink);
+    assert.equal(computedRule(css, '#output .wx-typography', 'padding'), profile.theme === 'obsidian' ? '18px 16px' : '8px 0');
+    assert.equal(computedRule(css, '#output .wx-typography .wx-code-block', 'background'), profile.code);
+    assert.ok(contrast(profile.ink, profile.paper) >= 7);
+    assert.ok(contrast(computedRule(css, '#output .wx-typography .hljs-comment', 'color'), profile.code) >= 4.5);
+    assert.notEqual(computedRule(css, '#output .wx-typography blockquote', 'background'), 'transparent');
+    headings.push(['padding', 'border-left', 'border-bottom', 'background'].map((property) => computedRule(css, '#output .wx-typography h2', property)).join('|'));
+    assert.equal(holder.querySelector('code').textContent, '# 注释\nreturn "ok"');
+  }
+  assert.equal(new Set(headings).size, 3, 'Each laboratory theme needs its own heading treatment');
+});
+
+test('all non-default palettes stay readable on obsidian dark paper and alert backgrounds', () => {
+  const html = '<p><a href="https://example.com">链接</a><code>参数</code></p><blockquote class="markdown-alert markdown-alert-warning"><p class="markdown-alert-title">警告</p><p>警告正文</p></blockquote>';
+  for (const palette of ['warm', 'blue', 'wechat', 'red', 'violet', 'ink']) {
+    const { css } = render(html, { theme: 'obsidian', palette });
+    const paper = computedRule(css, '#output .wx-typography', 'background');
+    const tint = computedRule(css, '#output .wx-typography .wx-alert', 'background');
+    assert.ok(contrast(computedRule(css, '#output .wx-typography a', 'color'), paper) >= 4.5, `${palette} links`);
+    assert.ok(contrast(computedRule(css, '#output .wx-typography p code', 'color'), computedRule(css, '#output .wx-typography p code', 'background')) >= 4.5, `${palette} inline code`);
+    assert.ok(contrast(computedRule(css, '#output .wx-typography .wx-alert-warning .wx-alert-title', 'color'), tint) >= 4.5, `${palette} warning title`);
+  }
+});
+
+test('figure captions use explicit title or explanatory alt text and never duplicate existing captions', () => {
+  const html = '<figure><img src="a.png" alt="图1 实验室拓扑" title="AMD 实验室拓扑"></figure><figure><img src="b.png" alt="图2 显卡连接方式"></figure><figure><img src="c.png" alt="foo.png"></figure><figure><img src="d.png" alt="图片"></figure><figure><img src="e.png" title="新标题"><figcaption>已有说明</figcaption></figure><figure><img src="f.png" title="&lt;script&gt;测试&lt;/script&gt;"></figure>';
+  for (const theme of ['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']) {
+    const result = render(html, { theme });
+    assert.deepEqual([...result.holder.querySelectorAll('figcaption')].map((caption) => caption.textContent), ['AMD 实验室拓扑', '图2 显卡连接方式', '已有说明', '<script>测试</script>']);
+    assert.equal(result.holder.querySelectorAll('script').length, 0);
+    assert.equal(render(result.html, { theme }).holder.querySelectorAll('figcaption').length, 4);
+  }
+  assert.deepEqual(prepareTypography(html, { theme: 'grace' }, document, highlighter), { html, css: '' });
+});
+
+test('handwritten figure explanation paragraphs become captions for new themes and explicit legacy detail settings', () => {
+  const html = '<figure><img src="a.png" alt="微信图片_20260101010101_001_01"></figure>\n<p><em>图1 实验室架构</em></p><p>这里是普通正文，必须保留。</p>';
+  for (const theme of ['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal', 'grace']) {
+    const result = render(html, { theme, caption_font_size: 12 });
+    const caption = result.holder.querySelector('figure > figcaption');
+    assert.equal(caption?.textContent, '图1 实验室架构');
+    assert.equal(caption.querySelector('em').textContent, '图1 实验室架构');
+    assert.equal(result.holder.querySelectorAll('figure + p').length, 1);
+    assert.equal(result.holder.querySelector('figure + p').textContent, '这里是普通正文，必须保留。');
+    assert.equal(computedRule(result.css, '#output .wx-typography figcaption', 'font-size'), '12px');
+    assert.equal(render(result.html, { theme, caption_font_size: 12 }).holder.querySelectorAll('figcaption').length, 1);
+  }
+  assert.deepEqual(prepareTypography(html, { theme: 'grace' }, document, highlighter), { html, css: '' });
+});
+
+test('caption recognition preserves title priority, safe emphasis and existing caption uniqueness', () => {
+  const html = '<figure><img src="a.png" title="实验室架构总览" alt="微信图片_20260101"></figure><p><strong>图1 实验室架构</strong></p><figure><img src="b.png"><figcaption>图2 实验设备</figcaption></figure><p><em>图2 实验设备</em></p><figure><img src="c.png" alt="原始替代说明"></figure><p>Figure 3: Laboratory layout.</p><p>图1展示了另一项实验结果，作为普通正文保留。</p>';
+  const { holder } = render(html, { caption_font_size: 12 });
+  const captions = [...holder.querySelectorAll('figcaption')];
+  assert.equal(captions.length, 3);
+  assert.match(captions[0].textContent, /^实验室架构总览/);
+  assert.equal(captions[0].querySelector('strong')?.textContent, '图1 实验室架构');
+  assert.equal(captions[1].textContent, '图2 实验设备');
+  assert.equal(captions[2].textContent, 'Figure 3: Laboratory layout.');
+  assert.equal(holder.textContent.match(/图2 实验设备/g).length, 1);
+  assert.equal(holder.querySelector('figure:last-of-type + p').textContent, '图1展示了另一项实验结果，作为普通正文保留。');
+});
+
+test('machine filename stems do not become automatic alt captions', () => {
+  const names = ['微信图片_20260101010101_001_01', '截图_20260101_123456', 'Screenshot_2026-01-01_12-30-45', 'Screenshot 2026-01-01 at 12.30.45', 'IMG_1234'];
+  const html = names.map((name) => `<figure><img src="a.png" alt="${name}"></figure>`).join('') + '<figure><img src="b.png" alt="图4 实验室网络结构"></figure>';
+  const { holder } = render(html);
+  assert.deepEqual([...holder.querySelectorAll('figcaption')].map((caption) => caption.textContent), ['图4 实验室网络结构']);
+});
+
+test('ordinary paragraphs and mixed markup following figures are not mistaken for caption lines', () => {
+  const html = '<figure><img src="a.png" alt="image"></figure><p>图1展示了普通正文。</p><figure><img src="b.png" alt="image"></figure><p>如图2，继续说明。</p><figure><img src="c.png" alt="image"></figure><p><a href="https://example.com">图3 实验室链接</a></p>';
+  const { holder } = render(html);
+  assert.equal(holder.querySelectorAll('figcaption').length, 0);
+  assert.equal(holder.querySelectorAll('figure + p').length, 3);
+  assert.equal(holder.querySelector('a').getAttribute('href'), 'https://example.com');
+});
+
+test('caption size controls override nested old caption styles without changing body size', () => {
+  const html = '<p>正文</p><figure><img src="a.png"><figcaption style="font-size:14px!important"><p style="font-size:14px"><span style="font-size:10px!important">实验条件说明</span></p></figcaption></figure>';
+  for (const theme of ['technical', 'obsidian', 'deepsea', 'teal', 'grace']) {
+    const { holder, css } = render(html, { theme, caption_font_size: 16 });
+    assert.equal(holder.querySelector('figcaption').textContent, '实验条件说明');
+    assert.equal(computedRule(css, '#output .wx-typography figcaption', 'font-size'), '16px');
+    assert.equal(computedRule(css, '#output .wx-typography figcaption *', 'font-size'), '16px');
+    for (const item of holder.querySelectorAll('figcaption,figcaption *')) assert.equal(item.style.getPropertyValue('font-size') || '', '');
+    assert.equal(computedRule(css, '#output .wx-typography p', 'font-size'), theme === 'grace' ? undefined : '17px');
+  }
 });
 
 test('legacy default HTML and stylesheet remain byte for byte untouched', () => {
@@ -254,6 +414,128 @@ test('auto fit tables break wide Latin runs inside fixed columns while explicit 
   assert.equal(computedRule(wide.css, '#output .wx-typography table', 'table-layout'), 'auto');
   assert.equal(computedRule(wide.css, '#output .wx-typography .wx-table-scroll td', 'white-space'), 'nowrap');
   assert.deepEqual([...wide.holder.querySelectorAll('th,td')].map((cell) => cell.textContent), [word, word, word, word]);
+});
+
+test('table size controls cover cells, cards and nested text at the chosen minimum', () => {
+  const html = '<table><thead><tr><th>项目</th><th>内容</th></tr></thead><tbody><tr><td style="font-size:10px!important">模型</td><td><p style="font-size:14px"><span style="font-size:8px!important">详细说明</span> <code style="font-size:9px">batch_size=4</code></p></td></tr></tbody></table>';
+  for (const theme of ['technical', 'obsidian', 'deepsea', 'teal', 'grace']) {
+    for (const table_mode of ['auto', 'scroll', 'cards']) {
+      const size = theme === 'grace' ? 12 : 16;
+      const result = render(html, { theme, table_mode, table_font_size: size });
+      assert.match(result.holder.textContent, /详细说明/);
+      assert.match(result.holder.textContent, /batch_size=4/);
+      for (const selector of ['#output .wx-typography th', '#output .wx-typography td', '#output .wx-typography th *', '#output .wx-typography td *', '#output .wx-typography .wx-table-key', '#output .wx-typography .wx-table-value', '#output .wx-typography .wx-table-value *']) {
+        assert.equal(computedRule(result.css, selector, 'font-size'), `${size}px`, `${theme}/${table_mode}: ${selector}`);
+      }
+      for (const cell of result.holder.querySelectorAll('th,td,th *,td *,.wx-table-key,.wx-table-key *,.wx-table-value,.wx-table-value *')) assert.equal(cell.style.getPropertyValue('font-size') || '', '');
+    }
+  }
+  const minimum = render(html, { table_font_size: 12 });
+  assert.equal(computedRule(minimum.css, '#output .wx-typography td code', 'font-size'), '12px');
+});
+
+test('table code blocks and language captions obey the table minimum after CSS specificity', () => {
+  const html = '<table><tr><th>代码</th><th>结束</th></tr><tr><td><pre><code class="language-python">return 42</code></pre></td><td>LAST</td></tr></table>';
+  for (const table_mode of ['auto', 'scroll', 'cards']) {
+    for (const size of [12, 16]) {
+      const result = render(html, { table_mode, table_font_size: size });
+      for (const element of result.holder.querySelectorAll('th,td,th *,td *,.wx-table-key,.wx-table-value,.wx-table-value *')) {
+        assert.ok(Number.parseFloat(resolvedRule(result.css, element, 'font-size')) >= size, `${table_mode}/${size}: ${element.tagName}.${element.className} uses ${resolvedRule(result.css, element, 'font-size')}`);
+      }
+    }
+  }
+});
+
+test('wide scroll tables keep every column and bottom row reachable without hidden clipping', () => {
+  const url = 'https://example.com/' + 'very-long-path-'.repeat(50) + 'last-path';
+  const html = `<section style="overflow:hidden;max-height:120px"><table style="overflow:hidden;max-height:100px"><thead><tr><th>首列</th><th>链接</th><th>代码</th><th>最后一列</th></tr></thead><tbody><tr><td>第一行</td><td><a href="${url}">${url}</a></td><td><code>${'long_token'.repeat(25)}</code></td><td>RIGHT_EDGE</td></tr><tr><td>最后一行</td><td>END_LINK</td><td>END_CODE</td><td>BOTTOM_RIGHT</td></tr></tbody></table></section>`;
+  const { holder, css } = render(html, { table_mode: 'scroll' });
+  assert.equal(holder.querySelectorAll('table tr').length, 3);
+  assert.equal(holder.querySelector('table a').getAttribute('href'), url);
+  assert.equal(holder.querySelector('tbody tr:last-child td:last-child').textContent, 'BOTTOM_RIGHT');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll', 'overflow-x'), 'auto');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll', 'overflow-y'), 'auto');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll table', 'width'), 'max-content');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll table', 'overflow'), 'visible');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll table', 'max-height'), 'none');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-scroll td', 'overflow'), 'visible');
+  assert.equal(holder.querySelectorAll('section[style*="overflow:hidden"]').length, 0);
+});
+
+test('table transforms preserve nonempty text nodes before and after an article table', () => {
+  const html = '<section>表前必须保留<table><thead><tr><th>Key</th></tr></thead><tbody><tr><td>value</td></tr></tbody></table>表后必须保留</section>';
+  for (const table_mode of ['auto', 'scroll', 'cards']) {
+    const result = render(html, { table_mode });
+    assert.match(result.holder.textContent, /^表前必须保留/);
+    assert.match(result.holder.textContent, /表后必须保留$/);
+    assert.match(result.holder.textContent, /value/);
+  }
+});
+
+test('sole table wrapper chains cannot clip rows and cleanup stops before article text', () => {
+  const html = '<div style="height:32px;overflow:hidden"><section style="max-height:20px;overflow-y:hidden"><div style="height:16px;white-space:nowrap"><table><tr><th>Key</th></tr><tr><td>ROW_ONE</td></tr><tr><td>ROW_TWO</td></tr><tr><td>LAST_ROW</td></tr></table></div></section></div>';
+  for (const table_mode of ['auto', 'scroll', 'cards']) {
+    const result = render(html, { table_mode });
+    assert.match(result.holder.textContent, /ROW_ONE/);
+    assert.match(result.holder.textContent, /ROW_TWO/);
+    assert.match(result.holder.textContent, /LAST_ROW/);
+    for (const wrapper of result.holder.querySelectorAll('div[style],section[style]')) {
+      for (const property of ['height', 'max-height', 'overflow', 'overflow-y', 'white-space']) assert.equal(wrapper.style.getPropertyValue(property) || '', '', `${table_mode} wrapper ${property}`);
+    }
+  }
+  const mixed = render('<section style="height:80px;overflow:hidden">表前正文<div style="height:20px;overflow:hidden"><table><tr><th>Key</th></tr><tr><td>LAST_ROW</td></tr></table></div>表后正文</section>');
+  const article = mixed.holder.querySelector('.wx-typography > section');
+  assert.equal(article.style.getPropertyValue('height'), '80px', 'Do not alter an article section with meaningful neighboring content');
+  assert.match(article.textContent, /^表前正文/);
+  assert.match(article.textContent, /表后正文$/);
+  assert.equal(article.querySelector('div').style.getPropertyValue('height') || '', '');
+});
+
+test('authored grid widths and column groups use scrolling instead of forcing a narrow fit', () => {
+  const tables = [
+    '<table><colgroup><col width="800"><col width="800"></colgroup><tr><th>A</th><th>B</th></tr><tr><td>one</td><td>LAST</td></tr></table>',
+    '<table style="width:1600px"><tr><th>A</th><th>B</th></tr><tr><td>one</td><td>LAST</td></tr></table>',
+    '<table><tr><th style="width:800px">A</th><th style="min-width:800px">B</th></tr><tr><td>one</td><td>LAST</td></tr></table>',
+  ];
+  for (const html of tables) {
+    for (const table_mode of ['auto', 'cards']) {
+      const result = render(html, { table_mode });
+      assert.ok(result.holder.querySelector('.wx-table-scroll table'));
+      assert.equal(result.holder.querySelectorAll('.wx-table-fit,.wx-table-card').length, 0);
+      assert.equal(result.holder.querySelector('tr:last-child td:last-child').textContent, 'LAST');
+      if (html.includes('<colgroup>')) assert.deepEqual([...result.holder.querySelectorAll('col')].map((col) => col.getAttribute('width')), ['800', '800']);
+      if (html.includes('width:1600px')) assert.match(result.holder.querySelector('table').getAttribute('style'), /width:\s*1600px/);
+      if (html.includes('width:800px')) assert.match(result.holder.querySelector('th').getAttribute('style'), /width:\s*800px/);
+    }
+  }
+});
+
+test('auto tables scroll intrinsically wide code or images while manual cards keep contained code', () => {
+  for (const content of ['<pre><code>WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW</code></pre>', '<img src="wide.png" width="1600" height="800" alt="完整宽图">']) {
+    const html = `<table><tr><th>A</th><th>B</th></tr><tr><td>${content}</td><td>LAST</td></tr></table>`;
+    const automatic = render(html);
+    assert.ok(automatic.holder.querySelector('.wx-table-scroll table'));
+    assert.equal(automatic.holder.querySelectorAll('.wx-table-fit').length, 0);
+    assert.match(automatic.holder.textContent, /LAST/);
+    const cards = render(html, { table_mode: 'cards' });
+    assert.equal(cards.holder.querySelectorAll('.wx-table-card').length, 1);
+    assert.match(cards.holder.textContent, /LAST/);
+  }
+});
+
+test('cards contain long links, code, images and nested blocks while preserving all content', () => {
+  const token = 'UNBROKEN'.repeat(40);
+  const html = `<table><thead><tr><th>项目</th><th>详细内容</th></tr></thead><tbody><tr><td>配置</td><td><div style="width:1000px"><p><a href="https://example.com/${token}">${token}</a></p><pre><code>${token}\nsecond line</code></pre><figure style="width:900px"><img src="image.png" width="800" height="400" alt="图1 完整图片"><figcaption>完整图片</figcaption></figure></div></td></tr><tr><td>末行</td><td>ALL_ROWS_END</td></tr></tbody></table>`;
+  const { holder, css } = render(html, { table_mode: 'cards', table_font_size: 12 });
+  assert.equal(holder.querySelectorAll('.wx-table-card').length, 2);
+  assert.equal(holder.querySelector('.wx-table-value pre code').textContent, `${token}\nsecond line`);
+  assert.equal(holder.querySelector('.wx-table-value img').getAttribute('src'), 'image.png');
+  assert.match(holder.textContent, /ALL_ROWS_END/);
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-value *', 'max-width'), '100%');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-value *', 'overflow-wrap'), 'anywhere');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-value pre code', 'white-space'), 'pre-wrap');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-value img', 'height'), 'auto');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-table-value figure', 'margin'), '8px 0');
 });
 
 test('cards repeat column headings and preserve links, emphasis, empty cells and all data rows', () => {

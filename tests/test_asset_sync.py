@@ -176,6 +176,8 @@ class DraftAssetTests(unittest.TestCase):
                 "wechat_account_id": ACCOUNT_ID,
                 "theme": "grace",
                 "font_size": 16,
+                "caption_font_size": 13,
+                "table_font_size": 16,
             },
             self.draft["revision"],
         )

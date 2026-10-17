@@ -30,6 +30,8 @@ class TypographyMetadataTests(unittest.TestCase):
             "font_size": 17,
             "code_wrap": "scroll",
             "table_mode": "auto",
+            "caption_font_size": 12,
+            "table_font_size": 13,
         }
         for field, value in expected.items():
             self.assertEqual(draft["metadata"].get(field), value)
@@ -52,6 +54,8 @@ class TypographyMetadataTests(unittest.TestCase):
                 self.assertEqual(loaded["metadata"].get("font_size"), 16)
                 self.assertEqual(loaded["metadata"].get("code_wrap"), "scroll")
                 self.assertEqual(loaded["metadata"].get("table_mode"), "auto")
+                self.assertEqual(loaded["metadata"].get("caption_font_size"), 13)
+                self.assertEqual(loaded["metadata"].get("table_font_size"), 16)
 
     def legacy_record(self, theme: str) -> tuple[str, str]:
         content = "# Legacy article\n\nBody"
@@ -127,7 +131,7 @@ class TypographyMetadataTests(unittest.TestCase):
                     self.assertEqual(restored["revision"], restored["publish"]["draft_revision"])
 
     def test_all_new_themes_and_custom_options_survive_save_reload(self) -> None:
-        for theme in ("technical", "journal", "minimal"):
+        for theme in ("technical", "journal", "minimal", "obsidian", "deepsea", "teal"):
             with self.subTest(theme=theme):
                 draft = self.store.create("# Article\n\nBody")
                 metadata = {
@@ -137,6 +141,8 @@ class TypographyMetadataTests(unittest.TestCase):
                     "font_size": 18,
                     "code_wrap": "wrap",
                     "table_mode": "cards",
+                    "caption_font_size": 14,
+                    "table_font_size": 16,
                 }
                 saved = self.store.save(draft["id"], draft["content"], metadata, draft["revision"])
                 loaded = self.store.get(draft["id"])
@@ -159,6 +165,20 @@ class TypographyMetadataTests(unittest.TestCase):
             ("code_wrap", ["wrap"], "scroll"),
             ("table_mode", "cards; position:fixed", "auto"),
             ("table_mode", {"mode": "scroll"}, "auto"),
+            ("caption_font_size", 11, 12),
+            ("caption_font_size", 17, 12),
+            ("caption_font_size", "14", 12),
+            ("caption_font_size", 14.0, 12),
+            ("caption_font_size", True, 12),
+            ("caption_font_size", {"value": 14}, 12),
+            ("caption_font_size", "14px; color:red", 12),
+            ("table_font_size", 11, 13),
+            ("table_font_size", 17, 13),
+            ("table_font_size", "15", 13),
+            ("table_font_size", 15.0, 13),
+            ("table_font_size", False, 13),
+            ("table_font_size", [15], 13),
+            ("table_font_size", "15px; color:red", 13),
         )
         for field, value, expected in unsafe_values:
             with self.subTest(field=field, value=value):
@@ -190,6 +210,97 @@ class TypographyMetadataTests(unittest.TestCase):
                             for field, expected in options.items():
                                 self.assertEqual(metadata.get(field), expected)
 
+    def test_caption_and_table_font_sizes_accept_only_integer_12_through_16(self) -> None:
+        for caption in (12, 13, 14, 15, 16):
+            for table in (12, 13, 14, 15, 16):
+                with self.subTest(caption=caption, table=table):
+                    metadata = normalize_metadata({
+                        "theme": "obsidian",
+                        "caption_font_size": caption,
+                        "table_font_size": table,
+                    })
+                    self.assertEqual(metadata.get("caption_font_size"), caption)
+                    self.assertEqual(metadata.get("table_font_size"), table)
+                    self.assertIs(type(metadata.get("caption_font_size")), int)
+                    self.assertIs(type(metadata.get("table_font_size")), int)
+
+    def four_field_record(self, theme: str) -> tuple[str, str]:
+        draft_id, _ = self.legacy_record(theme)
+        path = self.store.root / draft_id / "draft.json"
+        record = json.loads(path.read_text("utf-8"))
+        # These are nondefault legacy options, so the deployed four-field
+        # release included them in its revision for all six historical themes.
+        record["metadata"].update({
+            "font_family": "serif",
+            "font_size": 18,
+            "code_wrap": "wrap",
+            "table_mode": "cards",
+        })
+        path.write_text(json.dumps(record), encoding="utf-8")
+        serialized = json.dumps(record["metadata"], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        content = (path.parent / "article.md").read_text("utf-8")
+        old_revision = hashlib.sha256(f"{content}\x00{serialized}".encode("utf-8")).hexdigest()
+        (path.parent / "publish-state.json").write_text(json.dumps({
+            "media_id": "four-field-draft-media-id",
+            "draft_revision": old_revision,
+            "publish_status": "draft_synced",
+        }), encoding="utf-8")
+        return draft_id, old_revision
+
+    def test_old_four_field_records_retain_revision_with_new_size_defaults(self) -> None:
+        themes = (("grace", 13, 16), ("default", 13, 16), ("simple", 13, 16),
+                  ("technical", 12, 13), ("journal", 12, 13), ("minimal", 12, 13))
+        for theme, caption, table in themes:
+            with self.subTest(theme=theme):
+                draft_id, old_revision = self.four_field_record(theme)
+
+                loaded = self.store.get(draft_id)
+
+                self.assertEqual(loaded["revision"], old_revision)
+                self.assertEqual(loaded["revision"], loaded["publish"]["draft_revision"])
+                self.assertEqual(loaded["metadata"].get("caption_font_size"), caption)
+                self.assertEqual(loaded["metadata"].get("table_font_size"), table)
+
+    def test_new_size_edits_change_four_field_revision_and_restoring_defaults_restores_it(self) -> None:
+        for theme in ("grace", "default", "simple", "technical", "journal", "minimal"):
+            draft_id, old_revision = self.four_field_record(theme)
+            legacy = theme in ("grace", "default", "simple")
+            changes = (("caption_font_size", 12, 13), ("table_font_size", 12, 16)) if legacy else (
+                ("caption_font_size", 14, 12), ("table_font_size", 16, 13))
+            for field, custom, default in changes:
+                with self.subTest(theme=theme, field=field):
+                    current = self.store.get(draft_id)
+                    changed = self.store.save(
+                        draft_id, current["content"], {**current["metadata"], field: custom}, current["revision"],
+                    )
+                    self.assertNotEqual(changed["revision"], old_revision)
+                    self.assertEqual(changed["metadata"].get(field), custom)
+                    self.assertEqual(changed["publish"]["draft_revision"], old_revision)
+
+                    restored = self.store.save(
+                        draft_id, changed["content"], {**changed["metadata"], field: default}, changed["revision"],
+                    )
+
+                    self.assertEqual(restored["revision"], old_revision)
+
+    def test_legacy_twelve_pixel_sizes_change_historical_revision_and_restore_it(self) -> None:
+        for theme in ("grace", "default", "simple"):
+            for field, default in (("caption_font_size", 13), ("table_font_size", 16)):
+                with self.subTest(theme=theme, field=field):
+                    draft_id, old_revision = self.legacy_record(theme)
+                    current = self.store.get(draft_id)
+
+                    changed = self.store.save(
+                        draft_id, current["content"], {**current["metadata"], field: 12}, current["revision"],
+                    )
+
+                    self.assertNotEqual(changed["revision"], old_revision)
+                    self.assertEqual(changed["metadata"][field], 12)
+                    restored = self.store.save(
+                        draft_id, changed["content"], {**changed["metadata"], field: default}, changed["revision"],
+                    )
+                    self.assertEqual(restored["revision"], old_revision)
+
 
 class TypographySyncTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -214,6 +325,8 @@ class TypographySyncTests(unittest.TestCase):
             "font_size": 16 if theme in ("grace", "default", "simple") else 17,
             "code_wrap": "scroll",
             "table_mode": "auto",
+            "caption_font_size": 13 if theme in ("grace", "default", "simple") else 12,
+            "table_font_size": 16 if theme in ("grace", "default", "simple") else 13,
             **options,
         }
         return self.store.save(current["id"], current["content"], metadata, current["revision"])
@@ -237,7 +350,7 @@ class TypographySyncTests(unittest.TestCase):
         self.assertEqual(self.store.get(self.draft["id"])["publish"], {})
 
     def test_new_themes_require_typography_before_any_remote_call(self) -> None:
-        for theme in ("technical", "journal", "minimal"):
+        for theme in ("technical", "journal", "minimal", "obsidian", "deepsea", "teal"):
             with self.subTest(theme=theme):
                 self.save_options(theme)
                 with self.assertRaises(EditorError):
@@ -250,6 +363,9 @@ class TypographySyncTests(unittest.TestCase):
             {"font_size": 17},
             {"code_wrap": "wrap"},
             {"table_mode": "scroll"},
+            {"caption_font_size": 14},
+            {"caption_font_size": 12},
+            {"table_font_size": 12},
         )
         for changed in options:
             with self.subTest(changed=changed):
@@ -269,6 +385,8 @@ class TypographySyncTests(unittest.TestCase):
             "font_size": 16,
             "code_wrap": "scroll",
             "table_mode": "auto",
+            "caption_font_size": 13,
+            "table_font_size": 16,
         })
         self.assertEqual(synced["publish"]["publish_status"], "draft_synced")
         self.assertEqual(len(self.api.added_articles), 1)
@@ -279,12 +397,16 @@ class TypographySyncTests(unittest.TestCase):
             "font_size": 17,
             "code_wrap": "scroll",
             "table_mode": "auto",
+            "caption_font_size": 12,
+            "table_font_size": 13,
         }
         changes = (
             {"font_family": "sans"},
             {"font_size": 18},
             {"code_wrap": "wrap"},
             {"table_mode": "cards"},
+            {"caption_font_size": 14},
+            {"table_font_size": 16},
         )
         for changed in changes:
             with self.subTest(changed=changed):
@@ -301,6 +423,8 @@ class TypographySyncTests(unittest.TestCase):
             "font_size": 17,
             "code_wrap": "scroll",
             "table_mode": "auto",
+            "caption_font_size": 12,
+            "table_font_size": 13,
         }
         invalid = (
             {},
@@ -319,6 +443,20 @@ class TypographySyncTests(unittest.TestCase):
             {**valid, "code_wrap": ["scroll"]},
             {**valid, "table_mode": "cards; color:red"},
             {**valid, "table_mode": {"mode": "auto"}},
+            {**valid, "caption_font_size": 11},
+            {**valid, "caption_font_size": 17},
+            {**valid, "caption_font_size": "12"},
+            {**valid, "caption_font_size": 12.0},
+            {**valid, "caption_font_size": True},
+            {**valid, "caption_font_size": {"value": 12}},
+            {**valid, "table_font_size": 11},
+            {**valid, "table_font_size": 17},
+            {**valid, "table_font_size": "13"},
+            {**valid, "table_font_size": 13.0},
+            {**valid, "table_font_size": False},
+            {**valid, "table_font_size": [13]},
+            {key: value for key, value in valid.items() if key != "table_font_size"},
+            {key: value for key, value in valid.items() if key != "font_size"},
         )
         for typography in invalid:
             with self.subTest(typography=typography):
@@ -332,8 +470,10 @@ class TypographySyncTests(unittest.TestCase):
             "font_size": 18,
             "code_wrap": "wrap",
             "table_mode": "cards",
+            "caption_font_size": 14,
+            "table_font_size": 16,
         }
-        for index, theme in enumerate(("technical", "journal", "minimal")):
+        for index, theme in enumerate(("technical", "journal", "minimal", "obsidian", "deepsea", "teal")):
             with self.subTest(theme=theme):
                 current = self.save_options(theme, **typography)
 
@@ -345,10 +485,60 @@ class TypographySyncTests(unittest.TestCase):
                 self.assertEqual(synced["publish"]["draft_revision"], current["revision"])
                 self.assertEqual(synced["publish"]["publish_status"], "draft_synced")
         self.assertEqual(len(self.api.added_articles), 1)
-        self.assertEqual(len(self.api.updated_articles), 2)
+        self.assertEqual(len(self.api.updated_articles), 5)
         self.assertEqual(len(self.api.content_uploads), 1)
         self.assertEqual(len(self.api.thumb_uploads), 1)
         self.assertIn("https://mmbiz.qpic.cn/test/image-1.png", self.api.added_articles[0]["content"])
+
+    def test_four_field_sync_is_compatible_with_default_new_sizes_and_records_all_six(self) -> None:
+        for theme, size, caption, table in (("grace", 16, 13, 16), ("technical", 17, 12, 13), ("obsidian", 17, 12, 13)):
+            with self.subTest(theme=theme):
+                self.save_options(theme)
+                old_options = {
+                    "font_family": "theme", "font_size": size, "code_wrap": "scroll", "table_mode": "auto",
+                }
+
+                synced, _ = self.sync(theme, typography=old_options)
+
+                self.assertEqual(synced["publish"].get("typography"), {
+                    **old_options, "caption_font_size": caption, "table_font_size": table,
+                })
+
+    def test_four_field_sync_is_rejected_with_409_when_either_new_size_is_custom(self) -> None:
+        old_options = {
+            "font_family": "theme", "font_size": 17, "code_wrap": "scroll", "table_mode": "auto",
+        }
+        for changed in ({"caption_font_size": 14}, {"table_font_size": 16}):
+            with self.subTest(changed=changed):
+                self.save_options("technical", **changed)
+                with self.assertRaises(EditorError) as raised:
+                    self.sync("technical", typography=old_options)
+                self.assertEqual(raised.exception.status, 409)
+                self.assert_no_remote_calls()
+
+    def test_legacy_custom_sizes_block_four_field_sync_but_accept_explicit_six(self) -> None:
+        baseline = self.save_options("grace")
+        changed = self.save_options("grace", caption_font_size=12, table_font_size=13)
+        self.assertNotEqual(changed["revision"], baseline["revision"])
+        old_options = {
+            "font_family": "theme", "font_size": 16, "code_wrap": "scroll", "table_mode": "auto",
+        }
+        with self.assertRaises(EditorError) as raised:
+            self.sync("grace", typography=old_options)
+        self.assertEqual(raised.exception.status, 409)
+        self.assert_no_remote_calls()
+
+        complete = {**old_options, "caption_font_size": 12, "table_font_size": 13}
+        synced, _ = self.sync("grace", typography=complete)
+        self.assertEqual(synced["publish"]["typography"], complete)
+        self.assertEqual(synced["publish"]["draft_revision"], changed["revision"])
+
+        twelve = self.save_options("grace", caption_font_size=12, table_font_size=12)
+        complete["table_font_size"] = 12
+        synced, _ = self.sync("grace", typography=complete)
+        self.assertNotEqual(twelve["revision"], baseline["revision"])
+        self.assertEqual(synced["publish"]["typography"], complete)
+        self.assertEqual(synced["publish"]["draft_revision"], twelve["revision"])
 
 
 if __name__ == "__main__":

@@ -38,13 +38,18 @@ LOCAL_IMAGE_SRC = re.compile(
 FORBIDDEN_HTML = re.compile(r"<(?:script|iframe|object|embed|form)\b", re.I)
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 LEGACY_THEMES = {"default", "grace", "simple"}
-ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal"}
+ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal", "obsidian", "deepsea", "teal"}
 ALLOWED_PALETTES = {"warm", "wechat", "blue", "red", "violet", "ink"}
+BASE_TYPOGRAPHY_FIELDS = frozenset({"font_family", "font_size", "code_wrap", "table_mode"})
+TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 12, "table_font_size": 13}
+LEGACY_TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 13, "table_font_size": 16}
 TYPOGRAPHY_VALUES = {
     "font_family": {"theme", "sans", "serif"},
     "font_size": {15, 16, 17, 18},
     "code_wrap": {"scroll", "wrap"},
     "table_mode": {"auto", "scroll", "cards"},
+    "caption_font_size": {12, 13, 14, 15, 16},
+    "table_font_size": {12, 13, 14, 15, 16},
 }
 
 
@@ -123,6 +128,7 @@ def default_typography(theme: str) -> dict[str, Any]:
         "font_size": 16 if theme in LEGACY_THEMES else 17,
         "code_wrap": "scroll",
         "table_mode": "auto",
+        **(LEGACY_TYPOGRAPHY_SIZE_DEFAULTS if theme in LEGACY_THEMES else TYPOGRAPHY_SIZE_DEFAULTS),
     }
 
 
@@ -196,11 +202,19 @@ class DraftStore:
     def _revision(self, content: str, metadata: dict[str, Any]) -> str:
         revision_metadata = dict(metadata)
         theme = str(metadata.get("theme") or "")
+        defaults = default_typography(theme)
+        # Default sizes are equivalent to records saved by the four-field
+        # release. Only explicit size changes contribute new revision data.
+        for field in TYPOGRAPHY_SIZE_DEFAULTS:
+            if metadata.get(field) == defaults[field]:
+                revision_metadata.pop(field, None)
         if theme in LEGACY_THEMES and all(
-            metadata.get(field) == value for field, value in default_typography(theme).items()
+            metadata.get(field) == value
+            for field, value in defaults.items()
+            if field in BASE_TYPOGRAPHY_FIELDS
         ):
             # Equivalent legacy defaults retain historical save/sync revisions.
-            for field in TYPOGRAPHY_VALUES:
+            for field in BASE_TYPOGRAPHY_FIELDS:
                 revision_metadata.pop(field, None)
         serial = json.dumps(revision_metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return content_sha256(f"{content}\x00{serial}")
@@ -613,18 +627,29 @@ class WechatPublisher:
         if theme != draft["metadata"]["theme"] or palette != draft["metadata"]["palette"]:
             raise RevisionConflict()
         effective_typography = {field: draft["metadata"][field] for field in TYPOGRAPHY_VALUES}
+        typography_defaults = default_typography(theme)
         if typography is None and (
-            theme not in LEGACY_THEMES or effective_typography != default_typography(theme)
+            theme not in LEGACY_THEMES or effective_typography != typography_defaults
         ):
             raise EditorError("请刷新编辑器并重新保存排版选项后再同步", 409)
         if typography is not None:
-            if not isinstance(typography, dict) or set(typography) != set(TYPOGRAPHY_VALUES):
+            if not isinstance(typography, dict):
+                raise EditorError("公众号排版选项无效")
+            fields = set(typography)
+            if fields == BASE_TYPOGRAPHY_FIELDS:
+                size_defaults = {field: typography_defaults[field] for field in TYPOGRAPHY_SIZE_DEFAULTS}
+                if any(effective_typography[field] != default for field, default in size_defaults.items()):
+                    raise RevisionConflict()
+                requested_typography = {**typography, **size_defaults}
+            elif fields == set(TYPOGRAPHY_VALUES):
+                requested_typography = typography
+            else:
                 raise EditorError("公众号排版选项无效")
             for field, expected in effective_typography.items():
-                candidate = typography[field]
+                candidate = requested_typography[field]
                 if type(candidate) is not type(expected) or candidate not in TYPOGRAPHY_VALUES[field]:
                     raise EditorError("公众号排版选项无效")
-            if typography != effective_typography:
+            if requested_typography != effective_typography:
                 raise RevisionConflict()
         cover_path = self._validate(store, draft)
         if len(source_html.encode("utf-8")) > 5 * 1024 * 1024:

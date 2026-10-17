@@ -5,7 +5,7 @@
 ## 功能
 
 - Markdown 编辑、预览、本地保存和多个公众号账号管理。
-- 技术手册、纸感期刊、极简墨色三套文章版式，支持字体、字号、代码长行及表格模式，并提供 320/375/430px 手机宽度预览。见 [排版说明](docs/typography.md)。
+- 技术手册、纸感期刊、极简墨色，以及曜石青、深海青、青绿实验室六套文章版式。支持正文、图片说明、表格字号等六项排版设置，并提供 320/375/430px 手机宽度预览。图片说明与表格字号均为 12–16px；新主题默认 12/13px，旧三版式保留图注约13px、表格16px，选择12px可明确调整。见 [排版说明](docs/typography.md)。
 - 本地图片上传、封面选择、同步前缺图检查，兼容导入文档的相对图片目录。
 - 同步至微信公众号草稿箱，支持复用已同步草稿。
 - 可选直接发布，默认关闭。
@@ -44,13 +44,13 @@ python -m unittest discover -s tests -p "test_*.py" -v
 npm ci
 npm test
 python tools/build_frontend.py
-node --check app/web/editor/assets/index-20261017-typography.js
-node --check app/web/editor/assets/typography-20261017.mjs
-node --check app/web/editor/assets/typography-controls-20261017.mjs
+node --check app/web/editor/assets/index-20261017-lab.js
+node --check app/web/editor/assets/typography-20261017-lab.mjs
+node --check app/web/editor/assets/typography-controls-20261017-lab.mjs
 node --check app/web/editor/assets/company-network-20261016.mjs
 ```
 
-包含 42 项 Python 回归测试、34 项 Node 测试，测试不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。
+测试覆盖后端元数据、同步校验、图片路径、编辑器安全、前端排版与控件，不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。构建会同时生成 `typography-controls-20261017-lab.css`。
 
 ## 代码结构
 

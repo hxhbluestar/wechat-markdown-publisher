@@ -7,4 +7,14 @@
 .preview-tabs button,.preview-options label { white-space: nowrap; }
 .phone-stage { scroll-padding: 12px; }
 .wechat-preview,.reader-preview { box-sizing: border-box; }
+@media (min-width: 1081px) and (max-width: 1450px) {
+  .compose-grid { grid-template-columns: minmax(320px,1fr) minmax(480px,1fr); }
+  .publish-panel { display: none; }
+}
+@media (min-width: 821px) and (max-width: 1080px) {
+  .compose-grid { grid-template-columns: 1fr; overflow: auto; }
+  .source-panel { min-height: 440px; }
+  .preview-panel { min-height: calc(100vh - 68px); }
+}
 @media (max-width: 600px) { .typography-options { gap: 8px; padding: 10px 12px; } }
+@media (max-width: 480px) { .phone-stage { padding-inline: 0; } }
