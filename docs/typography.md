@@ -78,7 +78,31 @@ Apple 尺寸参考 [Apple 布局规范](https://developer.apple.com/cn/design/hu
 
 维护接口共六个字段：`font_family`（`theme/sans/serif`）、`font_size`（整数 `15/16/17/18`）、`caption_font_size`（整数 `12/13/14/15/16`）、`table_font_size`（整数 `12/13/14/15/16`）、`code_wrap`（`scroll/wrap`）、`table_mode`（`auto/scroll/cards`）。新增两项对新六主题默认 `12/13`，对旧三版式默认 `13/16`。缺省元数据对新主题使用 17px 正文、代码横滑及表格自动适配；编辑器切换版式时可应用上表中的推荐组合。
 
-本版资源入口为 `index-20261017-devices.js`，排版模块为 `typography-20261017-devices.mjs`，控件资源为 `typography-controls-20261017-devices.mjs` 与 `typography-controls-20261017-devices.css`，对应版本 `2026.10.17-devices.4`。
+本版资源入口为 `index-20261017-code.js`，排版模块为 `typography-20261017-code.mjs`，控件资源为 `typography-controls-20261017-code.mjs` 与 `typography-controls-20261017-code.css`，对应版本 `2026.10.17-code.5`。
+
+## AI 与 GPU 代码高亮
+
+代码使用本地 Highlight.js 11.11.1，新增基于 Python/C++ 语法的 AI/GPU 扩展及官方 Dockerfile、CMake、LLVM IR 模块，无需联网加载。四套常用版式采用 14px 等宽代码、12px 语言栏、细边框，并分别适配深浅底色。关键字、装饰器、字符串、数值/类型、函数/API、注释分层着色。
+
+在 Markdown 的三个反引号后填写语言：
+
+| 内容 | 推荐标记 | 兼容标记 |
+| --- | --- | --- |
+| Python / PyTorch | `python` | `py`、`python3`、`py3`、`pytorch`、`torch` |
+| TileLang | `tilelang` | `tile-lang`、`tile_lang` |
+| Triton | `triton` | — |
+| C / C++ | `c` / `cpp` | `c++`、`cxx`、`cc`、`hpp` 等原有 C++ 别名 |
+| AMD HIP | `hip` | `hip-cpp` |
+| CUDA | `cuda` | `cu`、`cuh` |
+| PowerShell | `powershell` | `pwsh`、`ps1`、`ps`、`psm1`、`psd1` |
+| Bash 脚本 | `bash` | `sh`、`zsh` |
+| 带 `$` 提示符的终端记录 | `shell` | `console`、`shellsession` |
+| 容器与构建 | `dockerfile` / `cmake` | `docker`、`cmake.in` |
+| LLVM IR | `llvm` | `ll` |
+
+普通 `python` 代码块也会突出常见 PyTorch/NumPy/JAX/TensorFlow 命名空间、Tensor/constexpr 等注解。TileLang 的 `T.Kernel`、`T.copy`、`T.alloc_shared`，Triton 的 `tl.load`、`tl.store`、`tl.arange`，以及 HIP/CUDA 的内核限定符、线程索引和运行时 API 有专门识别。采用词法高亮，不进行类型推断；自定义命名空间别名可能按普通标识符显示。JavaScript/TypeScript、JSON/JSONC、YAML、TOML、Rust、SQL 等已有语言继续可用。
+
+代码横滑保留长行，换行模式只改变显示；缩进、空行、制表符及尖括号等原文保留。公众号导出将颜色转成行内样式，不依赖网页脚本或高亮类名。未填写或不支持的语言安全显示为纯文本，不自动猜测。旧三版式的默认外观保持原有处理；选用四套常用版式即可获得新代码框样式。
 
 ## ROCm 博客转载
 

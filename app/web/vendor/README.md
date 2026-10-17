@@ -16,3 +16,9 @@
 - 公开仓库保留的许可证全文位于 `licenses/highlightjs.txt`；维护工程对应文件位于 `publication/licenses/highlightjs.txt`。已有 `app/web/highlight.min.js` 中的原始声明继续保留。
 
 此文件只注册语法，不连接外部服务，也不包含 PowerShell 执行能力。
+
+## AI/GPU 与构建语法
+
+- `highlight-extras-11.11.1.js`：来自 npm 官方 `highlight.js@11.11.1` 的 `lib/languages/dockerfile.js`、`cmake.js`、`llvm.js`，保留原语法并封装浏览器注册；同样适用上述 BSD-3-Clause 许可证。
+- `highlight-ai-20261017.js`：工程维护的词法扩展，由 `frontend/code-languages.js` 构建复制，基于现有 Python/C++ 模式注册 AI Python、TileLang、Triton、HIP、CUDA，保留原有语法。并补充 LLVM `ll` 别名。
+- 加载顺序：核心 → PowerShell → extras → AI/GPU → 编辑器模块。全部本地同步加载，无自动语言猜测、无代码执行、无远程依赖。

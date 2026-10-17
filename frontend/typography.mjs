@@ -1,7 +1,7 @@
 const NEW_THEMES = new Set(['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']);
 const SANS = '-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
 const SERIF = '"Songti SC","STSong","Noto Serif CJK SC","SimSun",serif';
-const MONO = '"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace';
+const MONO = '"Cascadia Code","JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace';
 
 /** Persist a small, validated set of controls; never accept raw CSS from settings. */
 export function normalizeTypography(settings, theme = 'technical') {
@@ -119,16 +119,17 @@ function typographyCSS(settings, theme, fresh, palette) {
   css += rule('.wx-alert-warning,.wx-alert-caution', { 'border-left': `3px solid ${c.dark ? '#be8a4d' : '#a55e25'}` });
   css += rule('.wx-alert-warning .wx-alert-title,.wx-alert-caution .wx-alert-title', { color: c.dark ? '#efbd7a' : '#97511f' });
   css += rule('.wx-alert-title svg', { display: 'none' });
-  css += rule('.wx-code-block', { margin: '20px 0 24px', padding: '0', background: c.code, color: c.codeInk, 'border-radius': theme === 'technical' ? '7px' : '3px', overflow: 'hidden', 'max-width': '100%' });
-  css += rule('.wx-code-caption', { display: 'block', margin: '0', padding: '9px 14px', color: c.label, background: c.code, 'border-bottom': `1px solid ${c.codeRule}`, 'font-family': MONO, 'font-size': '11px', 'line-height': '1.5', 'text-align': 'left' });
-  css += rule('.wx-code-pre', { display: 'block', margin: '0', padding: '15px 14px 18px', background: c.code, color: c.codeInk, border: '0', 'border-radius': '0', 'box-shadow': 'none', 'max-width': '100%', 'overflow-x': wrap ? 'hidden' : 'auto', 'overflow-y': 'hidden', 'font-family': MONO, 'font-size': '13px', 'line-height': '1.75', 'text-align': 'left', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'tab-size': '4' });
-  css += rule('.wx-code-text', { display: 'block', margin: '0', padding: '0', background: 'transparent', color: c.codeInk, border: '0', 'border-radius': '0', 'font-family': MONO, 'font-size': '13px', 'line-height': '1.75', 'letter-spacing': '0', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'text-align': 'left', 'tab-size': '4', 'text-shadow': 'none' });
+  css += rule('.wx-code-block', { margin: '22px 0 26px', padding: '0', background: c.code, color: c.codeInk, border: `1px solid ${c.codeRule}`, 'border-radius': theme === 'technical' || c.darkCode ? '8px' : '5px', overflow: 'hidden', 'max-width': '100%' });
+  css += rule('.wx-code-caption', { display: 'block', margin: '0', padding: '9px 15px', color: c.label, background: c.code, 'border-bottom': `1px solid ${c.codeRule}`, 'font-family': MONO, 'font-size': '12px', 'font-weight': '500', 'letter-spacing': '0.3px', 'line-height': '1.5', 'text-align': 'left' });
+  css += rule('.wx-code-pre', { display: 'block', margin: '0', padding: '16px 15px 19px', background: c.code, color: c.codeInk, border: '0', 'border-radius': '0', 'box-shadow': 'none', 'max-width': '100%', 'overflow-x': wrap ? 'hidden' : 'auto', 'overflow-y': 'hidden', 'font-family': MONO, 'font-size': '14px', 'line-height': '1.75', 'text-align': 'left', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'tab-size': '4' });
+  css += rule('.wx-code-text', { display: 'block', margin: '0', padding: '0', background: 'transparent', color: c.codeInk, border: '0', 'border-radius': '0', 'font-family': MONO, 'font-size': '14px', 'line-height': '1.75', 'font-variant-ligatures': 'none', 'letter-spacing': '0', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'text-align': 'left', 'tab-size': '4', 'text-shadow': 'none' });
   const tokenGroups = [
     ['.hljs-comment,.hljs-quote', c.comment],
-    ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag', c.keyword],
+    ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag,.hljs-meta', c.keyword],
     ['.hljs-string,.hljs-regexp,.hljs-attribute,.hljs-meta .hljs-string', c.string],
-    ['.hljs-number,.hljs-literal,.hljs-type,.hljs-attr,.hljs-variable,.hljs-template-variable,.hljs-symbol,.hljs-bullet', c.number],
-    ['.hljs-title,.hljs-section,.hljs-name,.hljs-built_in,.hljs-meta,.hljs-selector-id,.hljs-selector-class,.hljs-link', c.fn],
+    ['.hljs-number,.hljs-literal,.hljs-type,.hljs-symbol,.hljs-bullet', c.number],
+    ['.hljs-title,.hljs-section,.hljs-name,.hljs-built_in,.hljs-attr,.hljs-selector-id,.hljs-selector-class,.hljs-link', c.fn],
+    ['.hljs-variable,.hljs-template-variable,.hljs-subst,.hljs-operator,.hljs-punctuation', c.codeInk],
     ['.hljs-addition', c.addition], ['.hljs-deletion', c.deletion],
   ];
   for (const [tokens, color] of tokenGroups) css += rule(tokens, { color });
@@ -251,6 +252,17 @@ function codeSource(code, language) {
 }
 
 const LANGUAGE_LABELS = { plaintext: '纯文本', text: '纯文本', txt: '纯文本', python: 'Python', py: 'Python', javascript: 'JavaScript', js: 'JavaScript', typescript: 'TypeScript', ts: 'TypeScript', powershell: 'PowerShell', ps1: 'PowerShell', bash: 'Bash', sh: 'Shell', shell: 'Shell', shellsession: 'Shell', console: 'Shell', c: 'C', cpp: 'C++', 'c++': 'C++', csharp: 'C#', cs: 'C#', java: 'Java', json: 'JSON', yaml: 'YAML', yml: 'YAML', xml: 'XML', html: 'HTML', css: 'CSS', sql: 'SQL', diff: 'Diff', go: 'Go', rust: 'Rust', rs: 'Rust', ruby: 'Ruby', rb: 'Ruby', ini: 'INI', markdown: 'Markdown', md: 'Markdown', dockerfile: 'Dockerfile', docker: 'Dockerfile' };
+Object.assign(LANGUAGE_LABELS, {
+  'ai-python': 'Python', python3: 'Python', py3: 'Python', pytorch: 'PyTorch · Python', torch: 'PyTorch · Python',
+  tilelang: 'TileLang', 'tile-lang': 'TileLang', tile_lang: 'TileLang', triton: 'Triton',
+  cc: 'C++', cxx: 'C++', hpp: 'C++', hxx: 'C++', hh: 'C++', h: 'C',
+  hip: 'HIP · C++', 'hip-cpp': 'HIP · C++', cuda: 'CUDA · C++', cu: 'CUDA · C++', cuh: 'CUDA · C++',
+  pwsh: 'PowerShell', ps: 'PowerShell', psm1: 'PowerShell', psd1: 'PowerShell', sh: 'Bash', zsh: 'Bash',
+  'python-repl': 'Python REPL', pycon: 'Python REPL',
+  shell: 'Shell Session', shellsession: 'Shell Session', console: 'Shell Session',
+  cmake: 'CMake', 'cmake.in': 'CMake', llvm: 'LLVM IR', ll: 'LLVM IR',
+  jsonc: 'JSONC', toml: 'TOML', kt: 'Kotlin', kotlin: 'Kotlin', r: 'R', lua: 'Lua',
+});
 function codeLanguage(code) {
   const pending = code.getAttribute('data-language-pending');
   const match = /(?:^|\s)(?:language|lang)-([^\s]+)/i.exec(code.className || '');
@@ -271,7 +283,7 @@ function prepareCode(root, document, highlighter, fresh) {
     code.className = `wx-code-text hljs language-${language}`;
     code.setAttribute('data-wx-code', 'true');
     code.textContent = source;
-    const highlightLanguage = language.startsWith('diff-') ? 'diff' : language;
+    const highlightLanguage = language.startsWith('diff-') ? 'diff' : ['python', 'py'].includes(language) && highlighter?.getLanguage?.('ai-python') ? 'ai-python' : language;
     try {
       if (highlighter?.getLanguage?.(highlightLanguage)) {
         const result = highlighter.highlight(source, { language: highlightLanguage, ignoreIllegals: true });

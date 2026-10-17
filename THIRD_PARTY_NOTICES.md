@@ -8,6 +8,9 @@ authorship of those dependencies or relicense them as project-owned code.
   inside `app/web/vendor/wheels/*.whl`.
 - Highlight.js: the existing BSD-3-Clause notice remains in
   `app/web/highlight.min.js`; the upstream license is in `licenses/highlightjs.txt`.
+  The local PowerShell, Dockerfile, CMake and LLVM grammar modules are from
+  Highlight.js 11.11.1 and retain the same license. The first-party AI/GPU
+  extensions build on its Python/C++ grammar objects without replacing them.
 - Mermaid and KaTeX: upstream license texts are in `licenses/mermaid.txt` and
   `licenses/katex.txt`.
 - Markdown theme styles reference the Doocs Markdown editor ecosystem; its
