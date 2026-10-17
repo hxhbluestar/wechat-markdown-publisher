@@ -148,8 +148,9 @@ test('handwritten figure explanation paragraphs become captions for new themes a
     const caption = result.holder.querySelector('figure > figcaption');
     assert.equal(caption?.textContent, '图1 实验室架构');
     assert.equal(caption.querySelector('em').textContent, '图1 实验室架构');
-    assert.equal(result.holder.querySelectorAll('figure + p').length, 1);
-    assert.equal(result.holder.querySelector('figure + p').textContent, '这里是普通正文，必须保留。');
+    const prose=[...result.holder.querySelectorAll('p')].filter(p=>!p.closest('figure'));
+    assert.equal(prose.length, 1);
+    assert.equal(prose[0].textContent, '这里是普通正文，必须保留。');
     assert.equal(computedRule(result.css, '#output .wx-typography figcaption', 'font-size'), '12px');
     assert.equal(render(result.html, { theme, caption_font_size: 12 }).holder.querySelectorAll('figcaption').length, 1);
   }
@@ -166,7 +167,7 @@ test('caption recognition preserves title priority, safe emphasis and existing c
   assert.equal(captions[1].textContent, '图2 实验设备');
   assert.equal(captions[2].textContent, 'Figure 3: Laboratory layout.');
   assert.equal(holder.textContent.match(/图2 实验设备/g).length, 1);
-  assert.equal(holder.querySelector('figure:last-of-type + p').textContent, '图1展示了另一项实验结果，作为普通正文保留。');
+  assert.equal([...holder.querySelectorAll('p')].filter(p=>!p.closest('figure')).at(-1).textContent, '图1展示了另一项实验结果，作为普通正文保留。');
 });
 
 test('machine filename stems do not become automatic alt captions', () => {
@@ -180,7 +181,7 @@ test('ordinary paragraphs and mixed markup following figures are not mistaken fo
   const html = '<figure><img src="a.png" alt="image"></figure><p>图1展示了普通正文。</p><figure><img src="b.png" alt="image"></figure><p>如图2，继续说明。</p><figure><img src="c.png" alt="image"></figure><p><a href="https://example.com">图3 实验室链接</a></p>';
   const { holder } = render(html);
   assert.equal(holder.querySelectorAll('figcaption').length, 0);
-  assert.equal(holder.querySelectorAll('figure + p').length, 3);
+  assert.equal([...holder.querySelectorAll('p')].filter(p=>!p.closest('figure')).length, 3);
   assert.equal(holder.querySelector('a').getAttribute('href'), 'https://example.com');
 });
 

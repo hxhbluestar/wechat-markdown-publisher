@@ -1,5 +1,5 @@
-import {DEVICE_PRESETS,typographyControlsMarkup,connectTypographyControls,previewViewport} from '/editor/assets/typography-controls-20261017-colors.mjs';
-import {prepareTypography} from '/editor/assets/typography-20261017-colors.mjs';
+import {DEVICE_PRESETS,typographyControlsMarkup,connectTypographyControls,previewViewport} from '/editor/assets/typography-controls-20261017-proof.mjs';
+import {prepareTypography} from '/editor/assets/typography-20261017-proof.mjs';
 const report=document.querySelector('#device-report'),results=[];
 const check=(condition,label)=>{if(!condition)throw new Error(label);results.push('PASS '+label);};
 const tick=async()=>{for(let i=0;i<3;i++)await new Promise(requestAnimationFrame);};

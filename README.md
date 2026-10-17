@@ -5,6 +5,7 @@
 ## 功能
 
 - Markdown 编辑、预览、本地保存和多个公众号账号管理。
+- 本地离线错别字校对：正文波浪线高亮、定位、逐项/批量修改、忽略词、撤销及修改保存；同步前提醒核对常见易错词。代码、链接目标和路径自动跳过，文章不上传校对服务。见 [校对说明](docs/proofreading.md)。
 - 离线 AI/GPU 代码高亮：Python/PyTorch、C++、TileLang、Triton、HIP/CUDA、PowerShell、Bash 及 Dockerfile/CMake/LLVM；等宽代码框、分层配色和公众号行内颜色导出。
 - AMD 技术蓝、极简墨色、纸感期刊、曜石青四套常用文章版式；相近旧模板随已保存稿件兼容加载。支持正文、图片说明、表格字号等六项排版设置，并提供 6 款手机（含 2 款折叠屏内外屏）及 2 款 iPad 的机型预览，支持横竖屏、适合面板/100% 和自定义宽度。图片说明与表格字号均为 12–16px；新主题默认 12/13px，旧三版式保留图注约13px、表格16px，选择12px可明确调整。见 [排版说明](docs/typography.md)。
 - ROCm 官方博客链接导入：提取正文、保留代码语言与表格、下载相对路径配图，并保留作者和来源链接，生成新的本地稿件。源码运行需安装 `requirements-rocm.txt`。
@@ -47,13 +48,13 @@ python -m unittest discover -s tests -p "test_*.py" -v
 npm ci
 npm test
 python tools/build_frontend.py
-node --check app/web/editor/assets/index-20261017-colors.js
-node --check app/web/editor/assets/typography-20261017-colors.mjs
-node --check app/web/editor/assets/typography-controls-20261017-colors.mjs
+node --check app/web/editor/assets/index-20261017-proof.js
+node --check app/web/editor/assets/typography-20261017-proof.mjs
+node --check app/web/editor/assets/typography-controls-20261017-proof.mjs
 node --check app/web/editor/assets/company-network-20261016.mjs
 ```
 
-测试覆盖后端元数据、同步校验、图片路径、编辑器安全、前端排版与控件，不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。构建会同时生成 `typography-controls-20261017-colors.css`。
+测试覆盖后端元数据、同步校验、图片路径、编辑器安全、前端排版与控件，不调用真实微信接口。部署脚本测试仅使用临时目录和模拟进程；在没有 PowerShell 的平台跳过这些 Windows 部署测试。构建会同时生成 `typography-controls-20261017-proof.css`。
 
 ## 代码结构
 

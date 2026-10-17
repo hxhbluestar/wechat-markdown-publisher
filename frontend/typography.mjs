@@ -1,5 +1,6 @@
+import {prepareArticleSpacing,articleSpacingCSS} from './article-spacing.mjs';
 const NEW_THEMES = new Set(['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']);
-const SANS = '-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
+const SANS = '"mp-quote","PingFang SC",system-ui,-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans GB","Microsoft YaHei UI","Microsoft YaHei",Arial,sans-serif';
 const SERIF = '"Songti SC","STSong","Noto Serif CJK SC","SimSun",serif';
 const MONO = '"Cascadia Code","JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace';
 
@@ -194,6 +195,7 @@ function typographyCSS(settings, theme, fresh, palette) {
   if (theme === 'technical') css += technicalCSS(c, accentLine);
   css += laboratoryCSS(theme, c, accentLine);
   css += smallTextCSS(settings, true);
+  css += articleSpacingCSS(rule);
   return css;
 }
 
@@ -591,5 +593,6 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   }
   if (fresh || settings.caption_font_size !== 13) prepareCaptions(root, document);
   prepareSmallText(root, settings, fresh);
+  if (fresh) prepareArticleSpacing(root);
   return { html: holder.innerHTML, css: typographyCSS(settings, theme, fresh, options?.palette) };
 }
