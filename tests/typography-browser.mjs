@@ -110,6 +110,13 @@ try {
   }
   await import('/editor/assets/mermaid.core-CgMKsg4i.js');
   check(document.querySelector('#themeSelect')===themeControl && [...themeControl.options].slice(0,4).map(o=>o.value).join(',')==='technical,minimal,journal,obsidian' && themeControl.options.length<=5,'lazy diagram components reuse the four-template editor without bootstrapping the old bundle');
+  const beforeDevice=renderer.exportWechatArticle(markdown,'technical','warm',settings);
+  const device=document.querySelector('#previewWidthSelect');
+  device.value='ipad-air11';device.dispatchEvent(new Event('change',{bubbles:true}));
+  const direction=document.querySelector('#previewOrientationSelect');
+  direction.value='landscape';direction.dispatchEvent(new Event('change',{bubbles:true}));
+  check(renderer.exportWechatArticle(markdown,'technical','warm',settings)===beforeDevice,'iPad landscape preview does not change any exported publishing HTML');
+  check(!/device-preview|transform:\s*scale/.test(beforeDevice),'device frames and display scaling never leak into article export');
   report.dataset.status='passed';
   report.textContent=results.join('\n');
 } catch (error) {
