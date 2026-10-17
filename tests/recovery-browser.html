@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Native IndexedDB recovery isolation fixture</title>
+<h1>Native IndexedDB recovery isolation</h1>
+<p>This fixture uses only synthetic articles and an isolated temporary database.</p>
+<pre id="result">Running…</pre>
+<script type="module">
+import {createRecoveryController,createIndexedDBRecoveryStore} from '../frontend/draft-recovery.mjs';
+const result=document.querySelector('#result'), name=`publisher-recovery-test-${crypto.randomUUID()}`;
+const checks=[];
+function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
+function request(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+function controller(storage,content){return createRecoveryController({storage,capture:()=>({id:'same-draft',content,metadata:{title:'Synthetic'},revision:'base'}),setTimer:()=>0,clearTimer:()=>{}});}
+try{
+  // Seed the exact old database schema, with no recoveryId or draftId fields.
+  const opening=indexedDB.open(name,1);
+  opening.onupgradeneeded=()=>opening.result.createObjectStore('drafts',{keyPath:'id'});
+  const legacyDB=await request(opening);
+  await new Promise((resolve,reject)=>{const tx=legacyDB.transaction('drafts','readwrite');tx.objectStore('drafts').put({id:'same-draft',content:'legacy unsaved',metadata:{title:'Synthetic'},revision:'v1-base',updatedAt:1});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});
+  legacyDB.close();
+  const firstStore=createIndexedDBRecoveryStore(indexedDB,{databaseName:name,maxRecords:3});
+  const secondStore=createIndexedDBRecoveryStore(indexedDB,{databaseName:name,maxRecords:3});
+  const first=controller(firstStore,'first window unsaved'),second=controller(secondStore,'second window unsaved');
+  await Promise.all([first.flush(),second.flush()]);
+  const restarted=controller(createIndexedDBRecoveryStore(indexedDB,{databaseName:name,maxRecords:3}),'restart');
+  let records=await restarted.list();
+  check(records.length===3,'v1 legacy + both same-draft windows survive independent native connections');
+  check(new Set(records.map(r=>r.recoveryId)).size===3 && records.every(r=>r.id==='same-draft'),'recovery identities are distinct; actual draft identity is preserved');
+  for(const record of records)check((await restarted.read(record.recoveryId)).content===record.content,`restart reads ${record.content}`);
+  const overflow=controller(createIndexedDBRecoveryStore(indexedDB,{databaseName:name,maxRecords:3}),'fourth window');
+  let refused=false;try{await overflow.flush();}catch{refused=true;}
+  check(refused && (await restarted.list()).length===3,'full database refuses new window without eviction');
+  check(await first.clearSaved({id:'same-draft',content:'first window unsaved',metadata:{title:'Synthetic'}}),'saving first window clears only its owned recovery');
+  records=await restarted.list();
+  check(records.length===2 && records.some(r=>r.content==='legacy unsaved') && records.some(r=>r.content==='second window unsaved'),'other window and v1 legacy are retained after save');
+  const old=records.find(r=>r.content==='second window unsaved');
+  await secondStore.put({...old,content:'newer replacement',revision:'new-base',updatedAt:old.updatedAt+1});
+  check(!await firstStore.deleteIfUnchanged(old),'stale atomic compare-and-delete refuses newer writer');
+  check((await secondStore.get(old.recoveryId)).content==='newer replacement','interleaved replacement remains recoverable');
+  const matching=await secondStore.get(old.recoveryId);
+  check(await firstStore.deleteIfUnchanged(matching),'matching native record can be atomically removed');
+  check((await restarted.list()).length===1,'only explicit matching record removed');
+  const raw=await request(indexedDB.open(name,1));
+  check(raw.version===1,'v1 database remains compatible without a blocking schema upgrade');raw.close();
+  document.documentElement.dataset.status='passed';result.textContent=`PASS ${checks.length}\n${checks.join('\n')}`;
+}catch(error){document.documentElement.dataset.status='failed';result.textContent=`FAIL ${error.message}\n${checks.join('\n')}`;}
+</script>

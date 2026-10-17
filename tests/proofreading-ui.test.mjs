@@ -2,19 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseHTML} from 'linkedom';
 import {proofreadingMarkup,connectProofreading} from '../frontend/proofreading.mjs';
-function setup(initial='请按装 ROCm，软件以经准备就绪。',storage=null) {
+function setup(initial='请按装 ROCm，软件以经准备就绪。',storage=null,extra={}) {
   const {document}=parseHTML('<html><body>'+proofreadingMarkup()+'</body></html>');
   const dialog=document.querySelector('dialog');dialog.showModal=()=>dialog.setAttribute('open','');dialog.close=()=>dialog.removeAttribute('open');
   const state={text:initial,id:'test-draft',dirty:false,saves:0,fail:false};let control;
   control=connectProofreading(document,{storage,getText:()=>state.text,getDraftId:()=>state.id,getDirty:()=>state.dirty,
     replaceText:(next,expected,id)=>{assert.equal(state.text,expected);assert.equal(state.id,id);state.text=next;state.dirty=true;control.check(next);},
-    select:()=>{},save:async()=>{state.saves++;if(state.fail)return null;state.dirty=false;return {id:state.id};},onMarksChanged:()=>{}});
+    select:()=>{},save:async()=>{state.saves++;if(state.fail)return null;state.dirty=false;return {id:state.id};},onMarksChanged:()=>{},...extra});
   control.check(initial);return {document,control,state};
 }
 test('checking and opening shows highlighted suggestions without changing or saving the article',()=>{
   const {document,control,state}=setup();control.open();
   assert.equal(state.dirty,false);assert.equal(state.saves,0);assert.ok(control.issues.length>=2);
   assert.ok(document.querySelector('#proofreadingList mark'));assert.ok(document.querySelector('dialog').hasAttribute('open'));
+});
+test('snapshot must complete before correction and newer text during snapshot is retained',async()=>{
+ let release;const pending=new Promise(resolve=>release=resolve);
+ const {control,state}=setup('请按装环境。',null,{beforeReplace:()=>pending});
+ const applying=control.applySelected();assert.equal(state.text,'请按装环境。');
+ state.text+='新输入';release();assert.equal(await applying,false);assert.equal(state.text,'请按装环境。新输入');
 });
 test('selected corrections remain undoable and save errors retain the edited text',async()=>{
   const {control,state,document}=setup();control.open();assert.equal(control.applySelected(),true);

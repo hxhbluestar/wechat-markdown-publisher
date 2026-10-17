@@ -1,0 +1,160 @@
+.authoring-tools {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line, #ded9cf);
+  background: var(--paper, #fffefa);
+  color: var(--ink, #2b2926);
+  font-size: 12px;
+}
+.authoring-tools summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 24px;
+}
+.authoring-tools-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+.authoring-view-controls,
+.authoring-presets,
+.authoring-block-fields {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.authoring-tools label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.authoring-tools button,
+.authoring-tools select,
+.authoring-tools input {
+  min-height: 30px;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.authoring-tools button {
+  padding: 4px 9px;
+}
+.authoring-tools button:hover,
+.authoring-tools button[aria-pressed="true"] {
+  background: var(--accent, #b95538);
+  color: #fff;
+}
+.authoring-tools button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.authoring-tools input {
+  padding: 3px 6px;
+  min-width: 0;
+}
+.authoring-search-label input {
+  flex: 1;
+}
+.authoring-tools input[type="number"] {
+  width: 74px;
+}
+.authoring-tools input[type="range"] {
+  width: 140px;
+}
+.authoring-tools :focus-visible {
+  outline: 2px solid var(--accent, #b95538);
+  outline-offset: 2px;
+}
+.authoring-outline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 145px;
+  overflow: auto;
+  display: grid;
+  gap: 3px;
+}
+.authoring-outline button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.authoring-selection {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 6px;
+}
+.authoring-selection strong {
+  overflow-wrap: anywhere;
+}
+.authoring-unmatched {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background: #fff4df;
+  color: #714b08;
+  border: 1px solid #d8b675;
+  border-radius: 6px;
+}
+.authoring-status {
+  margin: 0;
+  color: var(--muted, #817b72);
+  overflow-wrap: anywhere;
+}
+@media (min-width: 1200px) {
+  .compose-grid {
+    grid-template-columns: minmax(
+        0,
+        var(--authoring-source-column, 1fr)
+      ) minmax(0, var(--authoring-preview-column, 1fr));
+  }
+}
+.authoring-focus-mode .draft-sidebar,
+.authoring-focus-mode .publish-panel {
+  display: none !important;
+}
+.authoring-focus-mode .editor-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .authoring-focus-mode .compose-grid {
+    grid-template-columns: minmax(
+        0,
+        var(--authoring-source-column, 1fr)
+      ) minmax(0, var(--authoring-preview-column, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .authoring-tools {
+    padding: 8px;
+  }
+  .authoring-block-fields label {
+    flex: 1 1 42%;
+  }
+  .authoring-unmatched {
+    flex-wrap: wrap;
+  }
+  .authoring-tools input[type="range"] {
+    width: 110px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .authoring-tools {
+    background: #302d28;
+    color: #eee9df;
+  }
+  .authoring-unmatched {
+    background: #3d3323;
+    color: #ebc98b;
+    border-color: #786039;
+  }
+}

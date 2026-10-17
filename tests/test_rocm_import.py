@@ -6,10 +6,14 @@ import base64
 import builtins
 import importlib
 import io
+import hashlib
+import json
 import socket
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -188,11 +192,106 @@ class RocmImportTests(unittest.TestCase):
                 self.assertEqual(len(self.store.list()), 1)
 
     def test_storage_failure_removes_only_the_new_draft(self):
-        with patch.object(self.store, "save", side_effect=OSError("simulated disk failure")):
+        with patch("editor_service.atomic_json", side_effect=OSError("simulated disk failure")):
             with self.assertRaises(EditorError):
                 rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher())
         self.assertEqual(self.store.get(self.existing["id"]), self.existing)
         self.assertEqual(len(self.store.list()), 1)
+
+    def test_preview_fetches_and_validates_all_assets_without_creating_any_files(self):
+        before = sorted(str(path.relative_to(self.store.root)) for path in self.store.root.rglob('*'))
+        preview = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher(), preview_only=True)
+        self.assertEqual(preview['title'], 'An original ROCm example')
+        self.assertEqual(preview['duplicates'], [])
+        self.assertEqual(preview['report']['before'], {'images': 1, 'fences': 1, 'tables': 1})
+        self.assertEqual(preview['report']['after'], preview['report']['before'])
+        self.assertEqual(preview['report']['asset_count'], 1)
+        self.assertIn(CODE, preview['preview_content'])
+        self.assertTrue(preview['report']['conversions'])
+        self.assertEqual(sorted(str(path.relative_to(self.store.root)) for path in self.store.root.rglob('*')), before)
+
+    def test_atomic_import_keeps_original_html_and_quality_provenance_privately(self):
+        with patch.object(self.store, 'create', side_effect=AssertionError('Use atomic prepared import')):
+            with patch.object(self.store, 'save_asset', side_effect=AssertionError('No visible partial draft')):
+                draft = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher())
+        folder = self.store.root / draft['id']
+        self.assertEqual((folder / 'source-original.bin').read_bytes(), HTML.encode())
+        provenance = json.loads((folder / 'source-provenance.json').read_text('utf-8'))
+        self.assertEqual(provenance['sha256'], hashlib.sha256(HTML.encode()).hexdigest())
+        self.assertEqual(provenance['source_url'], PAGE)
+        report = json.loads((folder / 'import-report.json').read_text('utf-8'))
+        self.assertEqual(report['asset_count'], 1)
+        self.assertEqual(report['provenance']['source_url'], PAGE)
+        self.assertEqual(draft['metadata']['import_kind'], 'rocm')
+        self.assertEqual(draft['metadata']['article_type'], 'rocm-repost')
+        self.assertEqual(draft['metadata']['source_author'], 'Example Author')
+        self.assertNotIn('marker_evil', json.dumps(report))
+        self.assertNotIn('source_original', draft)
+        self.assertEqual(self.store.list_assets(draft['id'])[0]['path'], 'images/' + hashlib.sha256(PNG).hexdigest() + '.png')
+
+    def test_duplicate_source_or_content_requires_explicit_confirmation_and_is_reported_by_preview(self):
+        first = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher())
+        preview = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher(), preview_only=True)
+        self.assertEqual(preview['duplicates'], [{'id': first['id'], 'title': first['metadata']['title']}])
+        for allow in [False, 'true', 1]:
+            with self.subTest(allow=allow), self.assertRaises(EditorError) as raised:
+                rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher(), allow_duplicate=allow)
+            self.assertEqual(raised.exception.status, 409)
+            self.assertEqual(raised.exception.duplicates, preview['duplicates'])
+            self.assertEqual(raised.exception.report['asset_count'], 1)
+        second = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher(), allow_duplicate=True)
+        self.assertNotEqual(second['id'], first['id'])
+        content_copy = self.store.create(first['content'])
+        preview = rocm_import.import_rocm(self.store, PAGE, fetcher=FakeNetwork().fetcher(), preview_only=True)
+        self.assertIn(content_copy['id'], [item['id'] for item in preview['duplicates']])
+        self.assertEqual(self.store.get(self.existing['id']), self.existing)
+
+    def test_preparation_rejects_truncated_images_and_injected_fetcher_budget_overflow(self):
+        class Fetcher:
+            def fetch(inner, url, **kwargs):
+                if kwargs['kind'] == 'html':
+                    return rocm_import.FetchResult(PAGE, HTML.encode(), 'text/html')
+                return rocm_import.FetchResult(url, b'\x89PNG\r\n\x1a\ntruncated', 'image/png')
+        with self.assertRaises(EditorError):
+            rocm_import.import_rocm(self.store, PAGE, fetcher=Fetcher(), preview_only=True)
+        with patch('rocm_import.MAX_TOTAL_BYTES', len(HTML.encode()) - 1):
+            with self.assertRaises(EditorError):
+                rocm_import.import_rocm(self.store, PAGE, fetcher=Fetcher(), preview_only=True)
+        self.assertEqual(len(self.store.list()), 1)
+
+    def test_simultaneous_imports_finish_downloads_first_and_atomically_recheck_duplicates(self):
+        barrier = threading.Barrier(2)
+        def run():
+            fetcher = FakeNetwork().fetcher()
+            original = fetcher.fetch
+            def fetch(url, **kwargs):
+                result = original(url, **kwargs)
+                if kwargs['kind'] == 'image':
+                    barrier.wait(timeout=5)
+                return result
+            fetcher.fetch = fetch
+            try:
+                return rocm_import.import_rocm(self.store, PAGE, fetcher=fetcher)
+            except EditorError as exc:
+                return exc
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(lambda _: run(), range(2)))
+        self.assertEqual(sum(isinstance(value, dict) for value in outcomes), 1)
+        errors = [value for value in outcomes if isinstance(value, EditorError)]
+        self.assertEqual([error.status for error in errors], [409])
+        self.assertEqual(len(self.store.list()), 2)
+
+    def test_source_only_duplicates_and_distinct_urls_with_identical_image_bytes_are_recognized(self):
+        draft = self.store.create('# Different content entirely')
+        self.store.save(draft['id'], draft['content'], {**draft['metadata'], 'source_url': PAGE}, draft['revision'])
+        network = FakeNetwork()
+        network.routes['/tools/original/README.html'] = [Response(HTML.replace('</article>', '<img src="../../_images/other.png"></article>').encode())]
+        network.routes['/_images/other.png'] = [Response(PNG, headers={'Content-Type': 'image/png'})]
+        preview = rocm_import.import_rocm(self.store, PAGE, fetcher=network.fetcher(), preview_only=True)
+        self.assertEqual(preview['duplicates'][0]['id'], draft['id'])
+        self.assertEqual(preview['report']['after']['images'], 2)
+        self.assertEqual(preview['report']['asset_count'], 1)
+        self.assertEqual(preview['preview_content'].count('images/' + hashlib.sha256(PNG).hexdigest() + '.png'), 2)
 
     def test_optional_parser_dependency_is_lazy_and_missing_dependency_is_readable(self):
         original = builtins.__import__

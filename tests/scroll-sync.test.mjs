@@ -48,6 +48,11 @@ test('both scroll directions follow block anchors without moving the cursor or c
   // The event caused by the mirrored write must not bounce back.
   h.source.dispatchEvent(new h.window.Event('scroll'));h.flush();assert.equal(h.stage.scrollTop,1500);
 });
+test('fractional browser end positions reach the complete opposite edge',()=>{
+ const h=harness();h.scroll(h.source,999.33);assert.equal(h.stage.scrollTop,2000);
+ h.scroll(h.stage,0.66);assert.equal(h.source.scrollTop,0);
+ h.controller.destroy();
+});
 test('toggle disables sync, horizontal child scrolls are ignored, and draft changes reset positions',()=>{
   const h=harness();h.toggle.click();h.scroll(h.source,200);assert.equal(h.stage.scrollTop,0);assert.equal(h.toggle.getAttribute('aria-pressed'),'false');
   h.toggle.click();h.flush();assert.equal(h.stage.scrollTop,1000);

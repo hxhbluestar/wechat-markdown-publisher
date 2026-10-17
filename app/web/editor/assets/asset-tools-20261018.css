@@ -1,0 +1,240 @@
+.asset-tools-dialog {
+  width: min(1050px, 94vw);
+  max-height: 90vh;
+  border: 1px solid #dce3ed;
+  border-radius: 16px;
+  padding: 0;
+  background: #fff;
+  color: #243246;
+  font:
+    14px/1.65 system-ui,
+    sans-serif;
+  box-shadow: 0 24px 100px #14223642;
+}
+.asset-tools-dialog::backdrop {
+  background: #12223975;
+}
+.asset-tools-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e1e7ef;
+}
+.asset-tools-dialog h2,
+.asset-tools-dialog h3,
+.asset-tools-dialog h4 {
+  margin: 0 0 8px;
+}
+.asset-tools-dialog small,
+.asset-tools-note {
+  color: #65748a;
+}
+.asset-tools-dialog button {
+  border: 1px solid #ccd7e5;
+  border-radius: 7px;
+  padding: 7px 12px;
+  background: #f4f7fb;
+  color: inherit;
+  cursor: pointer;
+}
+.asset-tools-dialog button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+.asset-tools-dialog button:focus-visible,
+.asset-tools-dialog input:focus-visible,
+.asset-tools-dialog select:focus-visible,
+.asset-tools-dialog textarea:focus-visible {
+  outline: 2px solid #0051c6;
+  outline-offset: 2px;
+}
+.asset-tools-content {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(340px, 1.3fr);
+  gap: 22px;
+  padding: 20px 22px;
+}
+.asset-tools-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.asset-tools-card {
+  border: 1px solid #dce4ef;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 12px 0;
+  background: #fafcfe;
+  overflow-wrap: anywhere;
+}
+.asset-tools-card p {
+  margin: 6px 0;
+  color: #53657c;
+}
+.asset-tools-card h4 {
+  font-size: 14px;
+}
+.asset-tools-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.asset-tools-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.asset-tools-dialog input,
+.asset-tools-dialog select,
+.asset-tools-dialog textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  border: 1px solid #c8d4e4;
+  border-radius: 6px;
+  padding: 8px;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+}
+.asset-tools-dialog input[type="range"] {
+  padding: 0;
+  width: 100%;
+}
+.asset-tools-dialog input[type="url"],
+.asset-tools-dialog textarea {
+  width: 100%;
+}
+.asset-tools-dialog textarea {
+  resize: vertical;
+}
+.asset-tools-preview {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px dashed #b8c9de;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.asset-tools-preview:empty {
+  display: none;
+}
+.asset-tools-preview p {
+  margin: 8px 0;
+}
+.asset-tools-image-frame {
+  position: relative;
+  width: 100%;
+  max-height: 340px;
+  overflow: auto;
+  background: repeating-conic-gradient(#edf0f5 0 25%, #fff 0 50%) 0/16px 16px;
+}
+.asset-tools-image-frame img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: auto;
+}
+.asset-tools-safe-area {
+  position: absolute;
+  inset: 10%;
+  border: 2px dashed #e0a52a;
+  color: #664000;
+  background: #fff7bf1c;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+.asset-tools-apply {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.asset-caption-tools {
+  border-top: 1px solid #e1e7ef;
+  padding: 20px 22px;
+}
+.asset-caption-tools ol {
+  max-height: 130px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding-left: 24px;
+}
+.asset-caption-tools pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f1f5fa;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+.asset-caption-tools pre:empty {
+  display: none;
+}
+.asset-caption-tools button {
+  margin-top: 10px;
+}
+.asset-tools-dialog > footer {
+  position: sticky;
+  bottom: 0;
+  background: #f2f6fb;
+  border-top: 1px solid #dce4ef;
+  padding: 12px 22px;
+  min-height: 24px;
+}
+.asset-tools-actions > h3:not(:first-child) {
+  margin-top: 22px;
+}
+@media (max-width: 720px) {
+  .asset-tools-content {
+    grid-template-columns: 1fr;
+  }
+  .asset-tools-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .asset-tools-dialog {
+    width: 96vw;
+    max-height: 94vh;
+  }
+  .asset-tools-content,
+  .asset-caption-tools {
+    padding: 16px;
+  }
+  .asset-tools-dialog > header {
+    padding: 14px 16px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .asset-tools-dialog {
+    background: #172331;
+    color: #e1eaf5;
+    border-color: #3d4e63;
+  }
+  .asset-tools-dialog small,
+  .asset-tools-note,
+  .asset-tools-card p {
+    color: #b1c0d3;
+  }
+  .asset-tools-card,
+  .asset-tools-dialog > footer {
+    background: #1e2d3e;
+    border-color: #3d4e63;
+  }
+  .asset-tools-dialog button,
+  .asset-tools-dialog input,
+  .asset-tools-dialog select,
+  .asset-tools-dialog textarea {
+    background: #23364b;
+    color: #e1eaf5;
+    border-color: #4b607a;
+  }
+  .asset-caption-tools pre {
+    background: #101c2b;
+  }
+}
+.asset-tools-image-frame.has-safe-area {
+  max-height: none;
+  overflow: visible;
+}

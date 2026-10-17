@@ -1,0 +1,197 @@
+.sync-jobs-dialog {
+  width: min(1080px, 95vw);
+  max-height: 90vh;
+  padding: 0;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 12px;
+  background: var(--paper, #fffefa);
+  color: var(--ink, #2b2926);
+}
+.sync-jobs-dialog::backdrop {
+  background: #14121099;
+}
+.sync-jobs-dialog > header,
+.sync-jobs-dialog > footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line, #ded9cf);
+}
+.sync-jobs-dialog > header h2 {
+  margin: 3px 0;
+  font-size: 19px;
+}
+.sync-jobs-dialog > header small {
+  color: var(--muted, #817b72);
+}
+.sync-jobs-dialog > footer {
+  border-top: 1px solid var(--line, #ded9cf);
+  border-bottom: 0;
+  min-height: 52px;
+  font-size: 12px;
+}
+.sync-jobs-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  font-size: 12px;
+}
+.sync-jobs-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 28%) minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 16px 16px;
+  max-height: 65vh;
+  overflow: auto;
+}
+#syncJobList {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+#syncJobDetail {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 8px;
+}
+#syncJobDetail > h3 {
+  margin: 0 0 8px;
+}
+#syncJobDetail code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.sync-job-card {
+  padding: 10px;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.sync-job-card p {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.sync-job-card > button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.sync-jobs-dialog button,
+.sync-jobs-dialog a[data-sync-backend-link] {
+  padding: 7px 10px;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sync-jobs-dialog button:hover,
+.sync-jobs-dialog button[aria-pressed="true"] {
+  background: var(--accent, #b95538);
+  color: #fff;
+}
+.sync-jobs-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sync-jobs-dialog :focus-visible {
+  outline: 2px solid var(--accent, #b95538);
+  outline-offset: 2px;
+}
+.sync-job-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.sync-job-note {
+  color: var(--muted, #817b72);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.sync-job-error {
+  padding: 10px;
+  border: 1px solid #cd9e72;
+  background: #fff3e6;
+  color: #814219;
+  border-radius: 6px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.sync-job-stage {
+  font-weight: 600;
+}
+.sync-manual-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.8;
+  font-size: 13px;
+}
+.sync-manual-check input {
+  margin-top: 5px;
+  flex: 0 0 auto;
+}
+.sync-remote-comparison {
+  margin-top: 16px;
+  border-top: 1px solid var(--line, #ded9cf);
+}
+.sync-comparison-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.sync-comparison-columns section {
+  min-width: 0;
+}
+.sync-comparison-columns pre {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 10px;
+  background: #00000008;
+  border: 1px solid var(--line, #ded9cf);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .sync-jobs-layout,
+  .sync-comparison-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sync-jobs-dialog > header h2 {
+    font-size: 16px;
+  }
+  #syncJobList {
+    max-height: 180px;
+    overflow: auto;
+  }
+  .sync-jobs-dialog > header,
+  .sync-jobs-dialog > footer {
+    padding: 12px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .sync-jobs-dialog {
+    background: #292621;
+    color: #eee9df;
+  }
+  .sync-job-error {
+    background: #3b2924;
+    color: #efb5a2;
+    border-color: #71483d;
+  }
+}

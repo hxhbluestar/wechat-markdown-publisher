@@ -38,6 +38,14 @@ from editor_service import (
 from archive_service import ArchiveTaskError, ArchiveTaskManager
 from editor_security import import_map_csp
 from rocm_import import import_rocm
+from article_import import prepare_import, ArticleImportError
+from article_package import article_package, RENDER_VERSION
+from server_preflight import preflight_article
+from sync_jobs import SyncJobs,SyncJobConflict,SyncJobCapacityError
+from sync_workflow import SyncWorkflow
+from sync_verification import verify_job,reconciliation_candidates
+from asset_service import inventory,derive_asset,download_asset,record_derivation
+from asset_workbench import AssetWorkbenchError
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -1093,6 +1101,8 @@ WECHAT_ACCOUNTS = WechatAccountStore(
     .lower()
     in {"1", "true", "yes", "on"},
 )
+SYNC_JOBS=SyncJobs(Path(os.environ.get('WECHAT_SYNC_JOBS_DIR',DRAFTS_DIR.with_name(DRAFTS_DIR.name+'.sync-jobs'))))
+SYNC_WORKFLOW=SyncWorkflow(DRAFT_STORE,SYNC_JOBS,WECHAT_ACCOUNTS)
 ARCHIVE_MANAGER = ArchiveTaskManager(PROJECT_DIR)
 EDITOR_TOKEN = secrets.token_urlsafe(32)
 
@@ -1144,6 +1154,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "wechat_account_count": account_count,
                         "direct_publish_enabled": WECHAT_ACCOUNTS.direct_publish_enabled,
                         "drafts_dir": str(DRAFTS_DIR),
+                        "render_version": RENDER_VERSION,
                         "network": company_network.network_status(),
                     }
                 )
@@ -1158,12 +1169,54 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(ARCHIVE_MANAGER.snapshot())
             if path == "/api/editor/drafts":
                 return self.send_json({"items": DRAFT_STORE.list()})
+            if path=='/api/editor/sync-jobs':
+                self.require_editor_auth()
+                return self.send_json({'items':SYNC_JOBS.list(query.get('draft_id',[None])[0],limit=100)})
+            job_match=re.fullmatch(r'/api/editor/sync-jobs/(?P<job>job-[a-f0-9]{32})',path)
+            if job_match:
+                self.require_editor_auth()
+                try:job=SYNC_JOBS.get(job_match['job'])
+                except FileNotFoundError:raise EditorError('同步任务不存在',404)
+                return self.send_json({'job':job})
+            if path == '/api/editor/trash':
+                self.require_editor_auth()
+                return self.send_json({'items': DRAFT_STORE.history.list_trash(), 'retention_days':30})
+            report_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/import-report',path)
+            if report_match:
+                self.require_editor_auth()
+                DRAFT_STORE.get(report_match['draft'])
+                folder=DRAFT_STORE._draft_dir(report_match['draft'])
+                report=json.loads((folder/'import-report.json').read_text('utf-8')) if (folder/'import-report.json').is_file() else None
+                source=json.loads((folder/'source-provenance.json').read_text('utf-8')) if (folder/'source-provenance.json').is_file() else {}
+                original=''
+                if source.get('kind') in {'md','html'} and (folder/'source-original.bin').is_file():
+                    original=(folder/'source-original.bin').read_bytes()[:1024*1024].decode('utf-8-sig',errors='replace')
+                return self.send_json({'report':report,'source':source,'original_text':original})
+            history_match = re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/history(?:/(?P<snapshot>[^/]+))?', path)
+            if history_match:
+                self.require_editor_auth()
+                DRAFT_STORE.get(history_match['draft'])
+                if history_match['snapshot']:
+                    return self.send_json(DRAFT_STORE.history.read(history_match['draft'],history_match['snapshot']))
+                return self.send_json({'items':DRAFT_STORE.history.list(history_match['draft'])})
+            export_match = re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/export',path)
+            if export_match:
+                self.require_editor_auth()
+                data=article_package(DRAFT_STORE,export_match['draft'])
+                self.send_response(200)
+                self.send_header('Content-Type','application/zip')
+                self.send_header('Content-Disposition','attachment; filename="article-package.zip"')
+                self.send_header('Content-Length',str(len(data)))
+                self.send_header('Cache-Control','no-store')
+                self.end_headers()
+                self.wfile.write(data)
+                return
             assets_match = re.fullmatch(
                 r"/api/editor/drafts/(?P<draft>[^/]+)/assets", path
             )
             if assets_match:
                 return self.send_json(
-                    {"items": DRAFT_STORE.list_assets(assets_match.group("draft"))}
+                    {"items": inventory(DRAFT_STORE,assets_match.group("draft"))}
                 )
             asset_match = re.fullmatch(
                 r"/api/editor/drafts/(?P<draft>[^/]+)/assets/(?P<asset>.+)", path
@@ -1263,6 +1316,9 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json({**company_network.network_status(), "last_error": str(exc)}, 503)
 
             if path == "/api/editor/drafts":
+                if isinstance(payload.get('metadata'),dict):
+                    draft=DRAFT_STORE.create_prepared(str(payload.get('content') or ''),payload['metadata'],str(payload.get('source_name') or ''))
+                    return self.send_json(draft,201)
                 draft = DRAFT_STORE.create(
                     str(payload.get("content") or ""),
                     title=str(payload.get("title") or ""),
@@ -1271,8 +1327,97 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(draft, 201)
 
             if path == "/api/editor/import-rocm":
-                draft = import_rocm(DRAFT_STORE, payload.get("url"))
+                try:
+                    draft = import_rocm(DRAFT_STORE, payload.get("url"), preview_only=payload.get('preview_only') is True, allow_duplicate=payload.get('allow_duplicate') is True)
+                except EditorError as exc:
+                    if exc.status==409 and hasattr(exc,'duplicates'):
+                        return self.send_json({'error':str(exc),'duplicates':exc.duplicates,'report':getattr(exc,'report',{})},409)
+                    raise
+                if payload.get('preview_only') is True:
+                    return self.send_json(draft)
                 return self.send_json({"draft": draft}, 201)
+
+            if path == '/api/editor/import':
+                import base64
+                try:
+                    data=base64.b64decode(str(payload.get('data') or ''),validate=True)
+                    prepared=prepare_import(str(payload.get('filename') or ''),data,kind=str(payload.get('kind') or 'auto'),base_url=str(payload.get('source_url') or ''),metadata=payload.get('metadata'))
+                except (ValueError,TypeError) as exc:
+                    return self.send_json({'error':str(exc),'report':getattr(exc,'report',{})},400)
+                fingerprint=prepared['metadata']['import_fingerprint']
+                source_url=prepared['metadata'].get('source_url')
+                duplicates=[]
+                for item in DRAFT_STORE.list():
+                    existing=DRAFT_STORE.get(item['id'])
+                    meta=existing['metadata']
+                    if meta.get('import_fingerprint')==fingerprint or (source_url and meta.get('source_url')==source_url) or existing['content']==prepared['content']:
+                        duplicates.append({'id':item['id'],'title':item['title']})
+                if payload.get('preview_only') is True:
+                    return self.send_json({'title':prepared['title'],'report':prepared['report'],'duplicates':duplicates,'preview_content':prepared['content'][:512*1024]})
+                if duplicates and payload.get('allow_duplicate') is not True:
+                    return self.send_json({'error':'已存在相同来源或内容的稿件；确认后可创建新版本副本','duplicates':duplicates,'report':prepared['report']},409)
+                draft=DRAFT_STORE.create_prepared(prepared['content'],prepared['metadata'],str(payload.get('filename') or ''),assets=prepared['assets'],source_original=prepared['source_original'],report=prepared['report'],asset_relations=prepared.get('asset_relations',()))
+                return self.send_json({'draft':draft,'report':prepared['report'],'duplicates':duplicates},201)
+
+            copy_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/copy',path)
+            if copy_match:
+                draft=DRAFT_STORE.copy_draft(copy_match['draft'],str(payload.get('content') or ''),payload.get('metadata') or {})
+                return self.send_json({'draft':draft},201)
+            preflight_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/preflight',path)
+            if preflight_match:
+                with DRAFT_STORE._lock:
+                    draft=DRAFT_STORE.get(preflight_match['draft'])
+                    report=preflight_article(DRAFT_STORE,draft,str(payload.get('html') or ''),str(payload.get('render_version') or ''),str(payload.get('account_id') or ''))
+                return self.send_json(report)
+            snapshot_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/snapshot',path)
+            if snapshot_match:
+                with DRAFT_STORE._lock:
+                    current=DRAFT_STORE.get(snapshot_match['draft'])
+                    if payload.get('revision')!=current['revision']:
+                        raise EditorError('稿件版本已变化，请先比较或另存副本',409)
+                    from editor_service import normalize_metadata,content_sha256
+                    content=str(payload.get('content') or '')
+                    if len(content.encode('utf-8'))>MAX_JSON_BYTES:raise EditorError('快照正文过大')
+                    metadata=normalize_metadata(payload.get('metadata'))
+                    candidate={**current,'content':content,'metadata':metadata,'revision':DRAFT_STORE._revision(content,metadata)}
+                    summary=DRAFT_STORE.history.capture(candidate,DRAFT_STORE._draft_dir(current['id']),str(payload.get('reason') or 'manual-snapshot')[:128])
+                return self.send_json({'snapshot':summary},201)
+            asset_action=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/assets/(?P<action>derive|download-remote)',path)
+            if asset_action:
+                try:
+                    if asset_action['action']=='derive':
+                        result=derive_asset(DRAFT_STORE,asset_action['draft'],str(payload.get('path') or ''),str(payload.get('mode') or 'diagram'),payload.get('options') or {})
+                    else:result=download_asset(DRAFT_STORE,asset_action['draft'],str(payload.get('url') or ''))
+                except AssetWorkbenchError as exc:
+                    raise EditorError(str(exc),400) from None
+                return self.send_json(result,201)
+            job_action=re.fullmatch(r'/api/editor/sync-jobs/(?P<job>job-[a-f0-9]{32})/(?P<action>retry|verify|resolve|candidates)',path)
+            if job_action:
+                job_id=job_action['job']
+                if job_action['action']=='retry':
+                    return self.send_json({'job':SYNC_WORKFLOW.retry(job_id)},202)
+                if job_action['action']=='verify':
+                    return self.send_json(verify_job(SYNC_WORKFLOW,job_id,media_id=payload.get('media_id','')))
+                if job_action['action']=='candidates':
+                    return self.send_json(reconciliation_candidates(SYNC_WORKFLOW,job_id))
+                if payload.get('confirmed_not_written') is not True:
+                    raise EditorError('必须先在微信后台核实本次没有写入，再明确确认',409)
+                return self.send_json({'job':SYNC_JOBS.resolve_uncertain(job_id,outcome='failed')})
+            compare_match=re.fullmatch(r'/api/wechat/drafts/(?P<draft>[^/]+)/remote-compare',path)
+            if compare_match:
+                return self.send_json(SYNC_WORKFLOW.compare_remote(compare_match['draft'],str(payload.get('account_id') or '')))
+
+            restore_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/history/(?P<snapshot>[^/]+)/restore',path)
+            if restore_match:
+                draft=DRAFT_STORE.restore_version(restore_match['draft'],restore_match['snapshot'],str(payload.get('revision') or ''))
+                return self.send_json({'draft':draft},201)
+            trash_restore=re.fullmatch(r'/api/editor/trash/(?P<trash>[^/]+)/restore',path)
+            if trash_restore:
+                try:
+                    draft_id=DRAFT_STORE.history.restore_trash(trash_restore['trash'],DRAFT_STORE.root)
+                except FileExistsError:
+                    raise EditorError('同编号稿件已经存在，未覆盖当前稿件',409)
+                return self.send_json({'draft':DRAFT_STORE.get(draft_id)})
 
             if path == "/api/wechat/accounts":
                 account = WECHAT_ACCOUNTS.create(
@@ -1300,27 +1445,17 @@ class Handler(SimpleHTTPRequestHandler):
                     str(payload.get("path") or ""),
                     str(payload.get("data") or ""),
                 )
+                if isinstance(payload.get('derivation'),dict):
+                    record_derivation(DRAFT_STORE,asset_match['draft'],result['path'],payload['derivation'])
                 return self.send_json(result, 201)
 
             sync_match = re.fullmatch(
                 r"/api/wechat/drafts/(?P<draft>[^/]+)/sync", path
             )
             if sync_match:
-                account_id = str(payload.get("account_id") or "")
-                current = DRAFT_STORE.get(sync_match.group("draft"))
-                if current["metadata"].get("wechat_account_id") != account_id:
-                    raise EditorError("稿件所选公众号尚未保存，请保存后重试", 409)
-                publisher = self.require_publisher(account_id)
-                draft, created = publisher.sync(
-                    DRAFT_STORE,
-                    sync_match.group("draft"),
-                    str(payload.get("html") or ""),
-                    str(payload.get("source_hash") or ""),
-                    str(payload.get("theme") or "grace"),
-                    str(payload.get("palette") or "warm"),
-                    typography=payload.get("typography"),
-                )
-                return self.send_json({"draft": draft, "created": created})
+                if not payload.get('preflight_fingerprint'):
+                    raise EditorError('请刷新编辑器并完成新版发布检查后再同步',409)
+                return self.send_json({'job':SYNC_WORKFLOW.start(sync_match['draft'],payload)},202)
 
             publish_match = re.fullmatch(
                 r"/api/wechat/drafts/(?P<draft>[^/]+)/publish", path
@@ -1335,6 +1470,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error_json(exc.status, str(exc))
         except ArchiveTaskError as exc:
             return self.send_error_json(exc.status, str(exc))
+        except (SyncJobConflict,SyncJobCapacityError) as exc:
+            return self.send_json({'error':str(exc),'job_id':getattr(exc,'job_id','')},409)
         except (BrokenPipeError, ConnectionResetError):
             return
         except Exception as exc:
@@ -1363,6 +1500,7 @@ class Handler(SimpleHTTPRequestHandler):
                     str(payload.get("content") or ""),
                     payload.get("metadata"),
                     str(payload.get("revision") or ""),
+                    reason=str(payload.get('reason') or 'manual-save'),
                 )
                 return self.send_json(draft)
             return self.send_error_json(404, "接口不存在")
@@ -1381,9 +1519,21 @@ class Handler(SimpleHTTPRequestHandler):
             self.require_editor_auth()
             if path == "/api/wechat/archive/session":
                 return self.send_json(ARCHIVE_MANAGER.clear_session())
+            trash_match = re.fullmatch(r'/api/editor/trash/(?P<trash>[^/]+)', path)
+            if trash_match:
+                payload = self.read_json_body()
+                try:
+                    DRAFT_STORE.history.purge_trash(trash_match.group('trash'), confirmation=str(payload.get('confirmation') or ''))
+                except ValueError:
+                    raise EditorError('永久清理需要确认当前回收站记录；路径或确认信息无效',400) from None
+                except FileNotFoundError:
+                    raise EditorError('回收站记录不存在或已恢复',404) from None
+                return self.send_json({'deleted':True,'trash_id':trash_match.group('trash')})
             draft_match = re.fullmatch(r"/api/editor/drafts/(?P<draft>[^/]+)", path)
             if draft_match:
                 draft_id = draft_match.group("draft")
+                if any(job['state'] in {'queued','running','uncertain'} for job in SYNC_JOBS.list(draft_id,limit=200)):
+                    raise EditorError('该稿件仍有进行中或待核实的同步任务，请先处理任务记录',409)
                 DRAFT_STORE.delete(draft_id)
                 return self.send_json({"deleted": True, "id": draft_id})
             account_match = re.fullmatch(r"/api/wechat/accounts/(?P<account>[^/]+)", path)

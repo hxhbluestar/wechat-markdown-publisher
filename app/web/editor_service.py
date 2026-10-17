@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import company_network
+from draft_history import DraftHistory
 import hashlib
 import html
 import json
@@ -62,6 +63,11 @@ class EditorError(Exception):
 class RevisionConflict(EditorError):
     def __init__(self) -> None:
         super().__init__("稿件已在其他窗口更新，请重新加载后再保存", 409)
+
+
+class WechatAPIRejected(EditorError):
+    """The platform returned a definite JSON errcode, rather than a timeout."""
+    definite_rejection = True
 
 
 def utc_now() -> str:
@@ -176,6 +182,28 @@ def normalize_metadata(value: Any, fallback_title: str = "") -> dict[str, Any]:
     metadata["wechat_account_id"] = account_id
     cover = str(source.get("cover") or "").strip()
     metadata["cover"] = safe_asset_path(cover) if cover else ""
+    for field in ('published_at', 'imported_at', 'import_fingerprint', 'import_kind', 'source_author', 'source_date'):
+        if field in source:
+            metadata[field] = str(source[field] or '')[:512]
+    if source.get('article_type') in {'tutorial', 'benchmark', 'rocm-repost'}:
+        metadata['article_type'] = source['article_type']
+    if isinstance(source.get('experiment_conditions'), dict):
+        allowed = {'hardware','vram','os_kernel','rocm_version','framework_version','model_version','precision','parallelism','input_output_length','concurrency','test_date','raw_data_source'}
+        metadata['experiment_conditions'] = {k:str(v)[:1024] for k,v in source['experiment_conditions'].items() if k in allowed}
+    if isinstance(source.get('block_overrides'), dict):
+        overrides={}
+        for block_id,candidate in sorted(source['block_overrides'].items()):
+            if len(overrides)>=200:break
+            if not re.fullmatch(r'block-[a-f0-9]{64}',str(block_id)) or not isinstance(candidate,dict):continue
+            kind=candidate.get('kind','')
+            if not isinstance(kind,str) or not re.fullmatch(r'(?:h[1-6]|p|figcaption|table)',kind):continue
+            item={'kind':kind}
+            low,high=(15,22) if kind=='p' else (12,16) if kind in {'figcaption','table'} else (18,32)
+            for field in ('font_size','margin_before','margin_after','line_height'):
+                value=candidate.get(field)
+                if (field=='font_size' and type(value) is int and low<=value<=high) or (field.startswith('margin_') and type(value) is int and 0<=value<=48) or (field=='line_height' and type(value) in (int,float) and 1.2<=value<=2.4):item[field]=value
+            if len(item)>1:overrides[block_id]=item
+        if overrides:metadata['block_overrides']=overrides
     if metadata["source_url"] and not re.match(r"^https?://", metadata["source_url"], re.I):
         raise EditorError("原文链接必须以 http:// 或 https:// 开头")
     return metadata
@@ -186,6 +214,7 @@ class DraftStore:
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self.history = DraftHistory(self.root.with_name(self.root.name + '.history'))
 
     def _draft_dir(self, draft_id: str) -> Path:
         if not DRAFT_ID.fullmatch(draft_id):
@@ -273,7 +302,28 @@ class DraftStore:
         return self.get(draft_id)
 
     def get(self, draft_id: str) -> dict[str, Any]:
+        with self._lock:
+            return self._get_locked(draft_id)
+
+    def _get_locked(self, draft_id: str) -> dict[str, Any]:
         folder, article_path, meta_path, state_path = self._paths(draft_id)
+        transaction = folder / '.save-transaction.json'
+        if transaction.is_file():
+            # A prepared write is committed as one logical content/metadata pair
+            # after process interruption. No user edits are inferred from mtimes.
+            try:
+                pending = json.loads(transaction.read_text('utf-8'))
+                new_content, new_record = pending['content'], pending['record']
+                if not isinstance(new_content, str) or new_record.get('id') != draft_id:
+                    raise ValueError('Invalid transaction')
+                if content_sha256(new_content) != pending['content_hash']:
+                    raise ValueError('Corrupt transaction')
+                normalize_metadata(new_record.get('metadata'))
+                atomic_write(article_path, new_content.encode('utf-8'))
+                atomic_json(meta_path, new_record)
+                transaction.unlink()
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise EditorError('稿件保存事务尚未恢复，请保留原目录后检查磁盘', 500) from exc
         if not folder.is_dir() or not article_path.is_file() or not meta_path.is_file():
             raise EditorError("稿件不存在", 404)
         try:
@@ -283,6 +333,16 @@ class DraftStore:
         except (OSError, UnicodeError, ValueError) as exc:
             raise EditorError("稿件文件损坏，无法读取", 500) from exc
         metadata = normalize_metadata(record.get("metadata"), "未命名文章")
+        selected = metadata.get('wechat_account_id')
+        if selected:
+            scoped = folder / f'.sync-state-{selected}.json'
+            if scoped.is_file():
+                try:
+                    publish = json.loads(scoped.read_text('utf-8'))
+                except (OSError,ValueError) as exc:
+                    raise EditorError('账号同步记录损坏，请保留原文件后检查',500) from exc
+            elif isinstance(publish,dict) and publish.get('account_id') not in (None,'',selected):
+                publish = {}
         return {
             "id": draft_id,
             "content": content,
@@ -294,7 +354,7 @@ class DraftStore:
             "publish": publish if isinstance(publish, dict) else {},
         }
 
-    def save(self, draft_id: str, content: str, metadata: Any, revision: str) -> dict[str, Any]:
+    def save(self, draft_id: str, content: str, metadata: Any, revision: str, reason: str = 'manual-save') -> dict[str, Any]:
         if len(content.encode("utf-8")) > MAX_JSON_BYTES:
             raise EditorError("Markdown 文档过大")
         with self._lock:
@@ -303,6 +363,7 @@ class DraftStore:
                 raise RevisionConflict()
             normalized = normalize_metadata(metadata, current["metadata"]["title"])
             folder, article_path, meta_path, _ = self._paths(draft_id)
+            self.history.capture(current, folder, reason if reason in {'manual-save', 'before-sync', 'proofreading', 'import', 'before-restore'} else 'manual-save')
             record = {
                 "id": draft_id,
                 "source_name": current["source_name"],
@@ -310,13 +371,24 @@ class DraftStore:
                 "updated_at": utc_now(),
                 "metadata": normalized,
             }
-            atomic_write(article_path, content.encode("utf-8"))
-            atomic_json(meta_path, record)
-            folder.mkdir(exist_ok=True)
+            previous_record = meta_path.read_bytes()
+            transaction = folder / '.save-transaction.json'
+            atomic_json(transaction, {'content': content, 'content_hash': content_sha256(content), 'record': record})
+            try:
+                atomic_write(article_path, content.encode('utf-8'))
+                atomic_json(meta_path, record)
+                transaction.unlink()
+            except Exception:
+                # Ordinary I/O errors roll back. A process interruption leaves the
+                # flushed journal for the next reader to finish the prepared pair.
+                atomic_write(article_path, current['content'].encode('utf-8'))
+                atomic_write(meta_path, previous_record)
+                transaction.unlink(missing_ok=True)
+                raise
         return self.get(draft_id)
 
     def delete(self, draft_id: str) -> None:
-        """Delete exactly one local draft directory and all of its local assets."""
+        """Move one complete local draft to recoverable trash."""
         with self._lock:
             raw_folder = self.root / draft_id
             if raw_folder.is_symlink():
@@ -324,16 +396,114 @@ class DraftStore:
             folder = self._draft_dir(draft_id)
             self.get(draft_id)
             try:
-                shutil.rmtree(folder)
-            except OSError as exc:
+                self.history.capture(self.get(draft_id), folder, 'before-delete')
+                self.history.trash(draft_id, folder)
+            except (OSError, ValueError) as exc:
                 raise EditorError("删除稿件失败，请关闭正在占用的文件后重试", 500) from exc
+
+    def restore_version(self, draft_id: str, snapshot_id: str, revision: str) -> dict[str, Any]:
+        with self._lock:
+            current = self.get(draft_id)
+            if current['revision'] != revision:
+                raise RevisionConflict()
+            snapshot = self.history.read(draft_id, snapshot_id)
+            self.history.capture(current, self._draft_dir(draft_id), 'before-restore')
+            return self.create_prepared(snapshot['content'], snapshot['metadata'], snapshot.get('source_name', ''), snapshot=snapshot)
+
+    def create_prepared(self, content: str, metadata: dict[str, Any], source_name: str = '', *, assets=(), asset_relations=(), snapshot=None, source_original=None, report=None) -> dict[str, Any]:
+        """Materialize a new draft privately, then expose its directory atomically."""
+        with self._lock:
+            if len(content.encode('utf-8'))>MAX_JSON_BYTES:
+                raise EditorError('Markdown 文档过大')
+            draft_id = f"draft-{datetime.now().strftime('%Y%m%d')}-{secrets.token_hex(4)}"
+            final = self._draft_dir(draft_id)
+            stage_parent = Path(tempfile.mkdtemp(prefix='.import-', dir=self.root))
+            staging=stage_parent/draft_id
+            staging.mkdir()
+            try:
+                material_paths = set()
+                if snapshot is not None:
+                    self.history.restore_assets(snapshot, staging)
+                    material_paths.update(entry['path'] for entry in snapshot['manifest']['assets'])
+                for asset in assets:
+                    relative = safe_asset_path(asset['name'])
+                    data = asset['bytes']
+                    if not isinstance(data, bytes) or not _looks_like_image(data) or len(data) > MAX_IMAGE_BYTES:
+                        raise EditorError('导入图片无效或超过 10MB')
+                    atomic_write(staging / relative, data)
+                    material_paths.add(relative)
+                inherited_relations = snapshot is not None and 'asset_relations' in snapshot['manifest']
+                default_relations = isinstance(asset_relations, tuple) and not asset_relations
+                if not default_relations or inherited_relations:
+                    from article_package import MAX_MANIFEST_BYTES, json_bytes, validate_relations
+                    raw_relations = snapshot['manifest']['asset_relations'] if default_relations else asset_relations
+                    by_path = {}
+                    for relative in material_paths:
+                        data = (staging / relative).read_bytes()
+                        by_path[relative] = {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
+                    portable_relations = validate_relations(raw_relations, by_path)
+                    atomic_write(staging / '.asset-relations.json', json_bytes(portable_relations, MAX_MANIFEST_BYTES))
+                now = utc_now()
+                normalized = normalize_metadata(metadata)
+                atomic_write(staging/'article.md', content.encode('utf-8'))
+                atomic_json(staging/'draft.json', {'id':draft_id,'source_name':Path(source_name).name[:255],'created_at':now,'updated_at':now,'metadata':normalized})
+                atomic_json(staging/'publish-state.json', {})
+                if source_original:
+                    atomic_write(staging/'source-original.bin', source_original['bytes'])
+                    atomic_json(staging/'source-provenance.json', {k:v for k,v in source_original.items() if k!='bytes'})
+                if report is not None:
+                    atomic_json(staging/'import-report.json', report)
+                # Both are resolved children of self.root; only this task's new
+                # staging directory may be moved or cleaned up.
+                if final.exists():
+                    raise EditorError('新稿编号冲突，请重试', 409)
+                candidate={'id':draft_id,'content':content,'metadata':normalized,'revision':self._revision(content,normalized),'source_name':Path(source_name).name[:255]}
+                self.history.capture(candidate,staging,'import' if snapshot is None else 'restored-copy')
+                staging.rename(final)
+            except BaseException:
+                if stage_parent.exists() and stage_parent.parent.resolve()==self.root and stage_parent.name.startswith('.import-'):
+                    shutil.rmtree(stage_parent)
+                raise
+            stage_parent.rmdir()
+            created = self.get(draft_id)
+            return created
 
     def save_publish_state(self, draft_id: str, state: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
-            _, _, _, state_path = self._paths(draft_id)
-            self.get(draft_id)
-            atomic_json(state_path, state)
+            folder, _, _, state_path = self._paths(draft_id)
+            draft=self.get(draft_id)
+            account_id=state.get('account_id')
+            if account_id:
+                if not WECHAT_ACCOUNT_ID.fullmatch(str(account_id)):
+                    raise EditorError('同步记录的账号编号无效')
+                atomic_json(folder/f'.sync-state-{account_id}.json', state)
+            if not account_id or draft['metadata'].get('wechat_account_id')==account_id:
+                atomic_json(state_path, state)
         return self.get(draft_id)
+
+    def get_publish_state(self, draft_id: str, account_id: str) -> dict[str, Any]:
+        with self._lock:
+            draft=self.get(draft_id)
+            if not account_id:
+                return dict(draft['publish'])
+            if not WECHAT_ACCOUNT_ID.fullmatch(account_id):
+                raise EditorError('公众号账号编号无效')
+            path=self._draft_dir(draft_id)/f'.sync-state-{account_id}.json'
+            if path.is_file():
+                value=json.loads(path.read_text('utf-8'))
+            else:
+                _,_,_,state_path=self._paths(draft_id)
+                value=json.loads(state_path.read_text('utf-8')) if state_path.is_file() else {}
+            return dict(value) if isinstance(value,dict) and value.get('account_id') in (None,'',account_id) else {}
+
+    def copy_draft(self, draft_id: str, content: str, metadata: dict) -> dict[str, Any]:
+        with self._lock:
+            current=self.get(draft_id)
+            candidate={**current,'content':content,'metadata':normalize_metadata(metadata)}
+            candidate['revision']=self._revision(content,candidate['metadata'])
+            captured=self.history.capture(candidate,self._draft_dir(draft_id),'conflict-copy')
+            snapshot=self.history.read(draft_id,captured['snapshot_id'])
+            return self.create_prepared(content,candidate['metadata'],current['source_name'],snapshot=snapshot)
 
     def asset_path(self, draft_id: str, relative: str, *, must_exist: bool = True) -> Path:
         clean = safe_asset_path(relative)
@@ -346,6 +516,10 @@ class DraftStore:
         return path
 
     def save_asset(self, draft_id: str, relative: str, encoded: str) -> dict[str, Any]:
+        with self._lock:
+            return self._save_asset_locked(draft_id,relative,encoded)
+
+    def _save_asset_locked(self, draft_id: str, relative: str, encoded: str) -> dict[str, Any]:
         clean = safe_asset_path(relative)
         try:
             data = base64.b64decode(encoded, validate=True)
@@ -355,12 +529,22 @@ class DraftStore:
             raise EditorError("图片不能为空且不能超过 10MB")
         if not _looks_like_image(data):
             raise EditorError("文件内容不是受支持的图片")
+        digest = hashlib.sha256(data).hexdigest()
         path = self.asset_path(draft_id, clean, must_exist=False)
-        atomic_write(path, data)
+        if path.exists() and path.read_bytes() != data:
+            # Uploaded originals may be referenced by historical snapshots,
+            # derivations and an accepted sync. A new upload gets a stable
+            # content name; callers must use the canonical returned path.
+            clean = f'images/upload-{digest}{Path(clean).suffix.lower()}'
+            path = self.asset_path(draft_id, clean, must_exist=False)
+            if path.exists() and path.read_bytes() != data:
+                raise EditorError('素材内容标识冲突，请保留原文件并重新检查', 409)
+        if not path.exists():
+            atomic_write(path, data)
         return {
             "path": clean,
             "size": len(data),
-            "sha256": hashlib.sha256(data).hexdigest(),
+            "sha256": digest,
         }
 
     def list_assets(self, draft_id: str) -> list[dict[str, Any]]:
@@ -435,7 +619,9 @@ class WechatOpenAPI:
                   urllib.request.urlopen(request, timeout=self.timeout)) as response:
                 yield response
         except company_network.CompanyNetworkError as exc:
-            raise EditorError(str(exc), 503) from exc
+            error=EditorError(str(exc),503)
+            error.definitely_not_sent=True
+            raise error from exc
 
     def _json_request(self, method: str, url: str, payload: Any | None = None) -> dict[str, Any]:
         body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -450,8 +636,7 @@ class WechatOpenAPI:
             raise EditorError("公众号返回了无法识别的数据", 502)
         errcode = int(result.get("errcode", 0) or 0)
         if errcode:
-            message = str(result.get("errmsg") or "未知错误")
-            raise EditorError(f"公众号接口错误 {errcode}：{message}", 502)
+            raise WechatAPIRejected(f"公众号接口错误 {errcode}，请按错误码核对配置与权限", 502)
         return result
 
     def _token(self) -> str:
@@ -536,6 +721,12 @@ class WechatOpenAPI:
     def update_draft(self, media_id: str, article: dict[str, Any]) -> None:
         self._post("/cgi-bin/draft/update", {"media_id": media_id, "index": 0, "articles": article})
 
+    def get_draft(self, media_id: str) -> dict[str, Any]:
+        return self._post('/cgi-bin/draft/get', {'media_id':media_id})
+
+    def get_recent_drafts(self) -> dict[str, Any]:
+        return self._post('/cgi-bin/draft/batchget', {'offset':0,'count':20,'no_content':0})
+
     def submit_publish(self, media_id: str) -> str:
         result = self._post("/cgi-bin/freepublish/submit", {"media_id": media_id})
         publish_id = str(result.get("publish_id") or "")
@@ -579,6 +770,7 @@ class WechatPublisher:
         draft_id: str,
         source_html: str,
         cache: dict[str, str],
+        *, on_image=None,
     ) -> tuple[str, dict[str, str]]:
         if FORBIDDEN_HTML.search(source_html):
             raise EditorError("排版结果包含公众号不支持的危险 HTML 标签")
@@ -590,13 +782,18 @@ class WechatPublisher:
             for match in LOCAL_IMAGE_SRC.finditer(source_html)
         }
 
+        completed=0
         def replace(match: re.Match[str]) -> str:
+            nonlocal completed
             path = image_paths[match.group("src")]
             digest = file_sha256(path)
             url = cache.get(digest)
             if not url:
                 url = self.api.upload_content_image(path)
                 cache[digest] = url
+            completed+=1
+            if on_image is not None:
+                on_image(dict(cache),completed,len(list(LOCAL_IMAGE_SRC.finditer(source_html))))
             return f'{match.group("prefix")}{match.group("quote")}{html.escape(url, quote=True)}{match.group("quote")}'
 
         return LOCAL_IMAGE_SRC.sub(replace, source_html), cache
@@ -621,6 +818,9 @@ class WechatPublisher:
         palette: str = "warm",
         *,
         typography: Any | None = None,
+        context=None,
+        remote_action: str = '',
+        expected_remote_hash: str = '',
     ) -> tuple[dict[str, Any], bool]:
         draft = store.get(draft_id)
         if self.account_id and draft["metadata"].get("wechat_account_id") != self.account_id:
@@ -669,12 +869,53 @@ class WechatPublisher:
         image_cache = publish.get("image_cache")
         if not isinstance(image_cache, dict):
             image_cache = {}
+        publish['image_cache']=image_cache
+        if self.account_id:
+            publish['account_id']=self.account_id
+            publish['account_name']=self.account_name
+        accepted_remote_hash = ''
+        if context:
+            from sync_jobs import UnknownRemoteResult,DefinitiveSyncFailure
+            from sync_workflow import normalized_remote_article,article_comparison
+            context.emit('preflight')
+            if hasattr(self.api,'validate_credentials'):
+                self.api.validate_credentials()
+            checkpoint=context.checkpoint_state
+            image_cache.update(checkpoint.get('image_cache') or {})
+            if checkpoint.get('thumb_media_id') and checkpoint.get('cover_sha256')==file_sha256(cover_path):
+                publish.update(thumb_media_id=checkpoint['thumb_media_id'],cover_sha256=checkpoint['cover_sha256'])
+            media_id=str(publish.get('media_id') or '')
+            if media_id:
+                context.emit('remote-check')
+                remote=normalized_remote_article(self.api.get_draft(media_id))
+                baseline=publish.get('remote_baseline')
+                diff=article_comparison(baseline or remote,remote)
+                accepted_remote_hash=diff['current_hash']
+                changed=not baseline or not publish.get('remote_verified') or diff['changed']
+                if changed:
+                    if remote_action not in {'overwrite','copy'} or not secrets.compare_digest(str(expected_remote_hash),diff['current_hash']):
+                        raise DefinitiveSyncFailure('remote-conflict')
+                elif remote_action in {'overwrite','copy'} and expected_remote_hash and not secrets.compare_digest(str(expected_remote_hash),diff['current_hash']):
+                    raise DefinitiveSyncFailure('remote-conflict')
+                if remote_action=='copy':
+                    publish.pop('media_id',None)
+        def checkpoint_image(cache,completed,total):
+            publish['image_cache']=dict(cache)
+            store.save_publish_state(draft_id,publish)
+            if context:
+                context.checkpoint(image_cache=dict(cache))
+                context.emit('images',completed=completed,total=total)
         try:
-            content, image_cache = self._replace_images(store, draft_id, source_html, image_cache)
+            if context:context.emit('images',completed=0,total=len(list(LOCAL_IMAGE_SRC.finditer(source_html))))
+            content, image_cache = self._replace_images(store, draft_id, source_html, image_cache, on_image=checkpoint_image)
             cover_hash = file_sha256(cover_path)
+            if context:context.emit('cover')
             thumb_media_id = str(publish.get("thumb_media_id") or "") if publish.get("cover_sha256") == cover_hash else ""
             if not thumb_media_id:
                 thumb_media_id = self.api.upload_thumb(cover_path)
+            publish.update(thumb_media_id=thumb_media_id,cover_sha256=cover_hash)
+            store.save_publish_state(draft_id,publish)
+            if context:context.checkpoint(thumb_media_id=thumb_media_id,cover_sha256=cover_hash,cover_cache={cover_hash:thumb_media_id})
 
             metadata = draft["metadata"]
             article = {
@@ -690,10 +931,46 @@ class WechatPublisher:
             }
             media_id = str(publish.get("media_id") or "")
             created = not bool(media_id)
-            if created:
-                media_id = self.api.add_draft(article)
-            else:
-                self.api.update_draft(media_id, article)
+            if context:
+                if media_id:
+                    # Uploads can take minutes. Recheck the exact accepted
+                    # semantic version immediately before writing. The remote
+                    # API has no compare-and-swap, so a small read/write race
+                    # remains outside this client's control.
+                    context.emit('remote-check')
+                    current=normalized_remote_article(self.api.get_draft(media_id))
+                    current_hash=article_comparison(current,current)['current_hash']
+                    if not secrets.compare_digest(accepted_remote_hash,current_hash):
+                        raise DefinitiveSyncFailure('remote-conflict')
+                if media_id:context.checkpoint(media_id=media_id)
+                context.checkpoint(operation='create' if created else 'update')
+                context.emit('remote-write',operation='create' if created else 'update')
+            try:
+                if created:
+                    media_id = self.api.add_draft(article)
+                else:
+                    self.api.update_draft(media_id, article)
+            except Exception as exc:
+                if context:
+                    if getattr(exc,'definite_rejection',False) or getattr(exc,'definitely_not_sent',False):
+                        raise DefinitiveSyncFailure('api-rejected') from exc
+                    raise UnknownRemoteResult() from exc
+                raise
+            if context:
+                context.checkpoint(media_id=media_id,remote_write_confirmed=True)
+                publish.update(media_id=media_id,remote_verified=False)
+                store.save_publish_state(draft_id,publish)
+                context.emit('verify')
+                try:
+                    actual=normalized_remote_article(self.api.get_draft(media_id))
+                    verified=not article_comparison(normalized_remote_article(article),actual)['changed']
+                    context.checkpoint(remote_snapshot=actual,baseline_hashes={'remote':article_comparison(actual,actual)['current_hash']},remote_verified=verified)
+                    publish.update(remote_baseline=actual,remote_baseline_hash=article_comparison(actual,actual)['current_hash'],remote_verified=verified)
+                    store.save_publish_state(draft_id,publish)
+                    if not verified:
+                        raise UnknownRemoteResult()
+                except Exception as exc:
+                    raise UnknownRemoteResult() from exc
             publish.update(
                 {
                     "media_id": media_id,
@@ -713,9 +990,12 @@ class WechatPublisher:
             if self.account_id:
                 publish["account_id"] = self.account_id
                 publish["account_name"] = self.account_name
+            if context:
+                from article_package import RENDER_VERSION
+                publish.update(render_version=RENDER_VERSION,render_fingerprint=context.snapshot.get('preflight_fingerprint',''),synced_snapshot={'content':draft['content'],'metadata':draft['metadata'],'revision':draft['revision']})
             return store.save_publish_state(draft_id, publish), created
-        except EditorError as exc:
-            publish["last_error"] = str(exc)
+        except Exception as exc:
+            publish["last_error"] = '同步未完成，已保留已确认的素材与封面进度'
             publish["failed_at"] = utc_now()
             store.save_publish_state(draft_id, publish)
             raise

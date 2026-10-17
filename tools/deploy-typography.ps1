@@ -1,13 +1,67 @@
-param()
+param(
+    [string]$SourceRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$PackageRoot = '',
+    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'WechatMarkdownPublisher')
+)
 $ErrorActionPreference = 'Stop'
-$SourceRoot = Split-Path -Parent $PSScriptRoot
-$PackageRoot = Split-Path -Parent $SourceRoot
-$InstallRoot = Join-Path $env:LOCALAPPDATA 'WechatMarkdownPublisher'
+
+function Assert-NoReparsePath {
+    param([string]$Path)
+    $Cursor = [IO.Path]::GetFullPath($Path)
+    while ($Cursor) {
+        if (Test-Path -LiteralPath $Cursor) {
+            $Entry = Get-Item -LiteralPath $Cursor -Force -ErrorAction Stop
+            if (($Entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'Deployment paths must not traverse symlinks or reparse points'
+            }
+        }
+        $Parent = Split-Path -Parent $Cursor
+        if (-not $Parent -or $Parent -eq $Cursor) { break }
+        $Cursor = $Parent
+    }
+}
+
+function Resolve-DeploymentRoot {
+    param([string]$Value, [string]$Name)
+    if (-not $Value -or -not [IO.Path]::IsPathRooted($Value) -or $Value -match '^[A-Za-z]:[^\\/]') { throw "$Name must be an absolute directory" }
+    $Full = [IO.Path]::GetFullPath($Value).TrimEnd([char[]]@('\','/'))
+    if ($Full -eq ([IO.Path]::GetPathRoot($Full)).TrimEnd([char[]]@('\','/'))) { throw "$Name must not be a filesystem root" }
+    if (-not (Test-Path -LiteralPath $Full -PathType Container)) { throw "$Name directory does not exist" }
+    Assert-NoReparsePath -Path $Full
+    return $Full
+}
+
+function Assert-DeploymentChild {
+    param([string]$Root, [string]$Path)
+    $Full = [IO.Path]::GetFullPath($Path)
+    $Prefix = $Root.TrimEnd([char[]]@('\','/')) + [IO.Path]::DirectorySeparatorChar
+    if (-not $Full.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Deployment target escaped its validated root' }
+    Assert-NoReparsePath -Path $Full
+}
+
+$SourceRoot = Resolve-DeploymentRoot -Value $SourceRoot -Name 'SourceRoot'
+if (-not $PackageRoot) {
+    if ($SourceRoot -match '(?i)[\\/](?:\.worktrees|worktrees)[\\/]') {
+        throw 'An isolated worktree requires an explicit PackageRoot; no payload path was inferred'
+    }
+    $PackageRoot = Split-Path -Parent $SourceRoot
+}
+$PackageRoot = Resolve-DeploymentRoot -Value $PackageRoot -Name 'PackageRoot'
+$InstallRoot = Resolve-DeploymentRoot -Value $InstallRoot -Name 'InstallRoot'
+$PayloadRoot = Join-Path $PackageRoot 'payload'
+if ($SourceRoot -eq $PackageRoot -or $SourceRoot -eq $InstallRoot -or $InstallRoot -eq $PackageRoot -or $InstallRoot -eq $PayloadRoot) {
+    throw 'SourceRoot, PackageRoot and installation/payload roots must be distinct'
+}
+$SourcePrefix = $SourceRoot + [IO.Path]::DirectorySeparatorChar
+if ($InstallRoot.StartsWith($SourcePrefix, [StringComparison]::OrdinalIgnoreCase) -or $PayloadRoot.StartsWith($SourcePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Installation and payload destinations must be outside SourceRoot'
+}
+Assert-NoReparsePath -Path $PayloadRoot
 $RuntimePython = Join-Path $InstallRoot 'runtime\python.exe'
 $ServerScript = Join-Path $InstallRoot 'app\web\server.py'
 $PidFile = Join-Path $InstallRoot 'data\server.pid'
 $PowerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$BackupRoot = Join-Path $SourceRoot ('releases\typography-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+$BackupRoot = Join-Path $SourceRoot ('releases\typography-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 
 function Get-OwnedServers {
     $Listeners = @(Get-NetTCPConnection -ErrorAction Stop | Where-Object {
@@ -80,41 +134,42 @@ function New-TypographyChanges {
     # Only code/static resources and package version metadata are replaced.
     # Network configuration, credentials, cookies, drafts, and runtime stay out
     # of this release manifest. Existing startup scripts are reused unchanged.
-    $Files = @(
-        'app\web\server.py',
-        'app\web\rocm_import.py',
-        'app\web\editor_service.py',
-        'app\web\editor_security.py',
-        'app\web\editor\index.html',
-        'app\web\editor\assets\index-20261017-scroll.js',
-        'app\web\editor\assets\typography-20261017-scroll.mjs',
-        'app\web\editor\assets\typography-controls-20261017-scroll.mjs',
-        'app\web\editor\assets\typography-controls-20261017-scroll.css',
-        'app\web\editor\assets\article-spacing-20261017-scroll.mjs',
-        'app\web\editor\assets\scroll-sync-20261017-scroll.mjs',
-        'app\web\editor\assets\proofreading-20261017-scroll.mjs',
-        'app\web\editor\assets\proofreading-20261017-scroll.css',
-        'app\web\editor\assets\proofreading-core-20261017-scroll.mjs',
-        'app\web\editor\assets\proofreading-dictionary-20261017-scroll.mjs',
-        'app\web\editor\assets\rocm-import-20261017.mjs',
-        'app\web\vendor\highlight-powershell-11.11.1.min.js',
-        'app\web\vendor\highlight-extras-11.11.1.js',
-        'app\web\vendor\highlight-ai-20261017.js',
-        'app\web\vendor\README.md'
-    )
+    $ManifestPath = Join-Path $SourceRoot 'config\deployment-files.json'
+    Assert-DeploymentChild -Root $SourceRoot -Path $ManifestPath
+    $Release = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    if ($Release.schema_version -ne 1 -or -not ($Release.release -match '^\d{4}\.\d{2}\.\d{2}-[a-z0-9.-]+$') -or -not $Release.files -or $Release.files.Count -gt 128) {
+        throw 'Invalid deployment release manifest'
+    }
+    $Backend = @('server.py','rocm_import.py','editor_service.py','editor_security.py','draft_history.py','article_import.py','article_package.py','asset_workbench.py','asset_service.py','server_preflight.py','sync_jobs.py','sync_workflow.py','sync_verification.py')
+    $Seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $Files = @()
+    foreach ($Relative in $Release.files) {
+        if ($Relative -isnot [string] -or $Relative -match '[\\:\x00-\x1f]' -or $Relative -match '(^|/)\.\.?(?:/|$)' -or -not $Seen.Add($Relative)) {
+            throw 'Unsafe or duplicate deployment manifest path'
+        }
+        $Allowed = $false
+        if ($Relative -match '^app/web/([^/]+\.py)$') { $Allowed = $Matches[1] -cin $Backend }
+        if ($Relative -ceq 'app/web/editor/index.html' -or $Relative -cmatch '^app/web/editor/assets/[A-Za-z0-9_.-]+\.(?:js|mjs|css)$') { $Allowed = $true }
+        if ($Relative -cin @('app/web/vendor/highlight-powershell-11.11.1.min.js','app/web/vendor/highlight-extras-11.11.1.js','app/web/vendor/highlight-ai-20261017.js','app/web/vendor/README.md','app/web/vendor/mathjax-3.2.2/tex-svg.js','app/web/vendor/mathjax-3.2.2/LICENSE')) { $Allowed = $true }
+        if (-not $Allowed) { throw 'Deployment manifest includes a path outside the code/static allowlist' }
+        $Files += $Relative
+    }
     $Changes = @()
     foreach ($Relative in $Files) {
-        foreach ($DestinationRoot in @($InstallRoot, (Join-Path $PackageRoot 'payload'))) {
+        foreach ($DestinationRoot in @($InstallRoot, $PayloadRoot)) {
             $Changes += @{
                 source = Join-Path $SourceRoot $Relative
                 target = Join-Path $DestinationRoot $Relative
+                target_root = $DestinationRoot
             }
         }
     }
-    foreach ($Destination in @((Join-Path $InstallRoot 'version.json'), (Join-Path $PackageRoot 'payload\version.json'))) {
-        $Changes += @{source = Join-Path $SourceRoot 'packaging\version.json'; target = $Destination}
+    foreach ($DestinationRoot in @($InstallRoot, $PayloadRoot)) {
+        $Changes += @{source = Join-Path $SourceRoot 'packaging\version.json'; target = (Join-Path $DestinationRoot 'version.json'); target_root = $DestinationRoot}
     }
     foreach ($Change in $Changes) {
+        Assert-DeploymentChild -Root $SourceRoot -Path $Change.source
+        Assert-DeploymentChild -Root $Change.target_root -Path $Change.target
         if (-not (Test-Path -LiteralPath $Change.source -PathType Leaf)) { throw "Missing source: $($Change.source)" }
         if ((Test-Path -LiteralPath $Change.target) -and -not (Test-Path -LiteralPath $Change.target -PathType Leaf)) {
             throw "Target is not a regular file: $($Change.target)"
@@ -125,6 +180,8 @@ function New-TypographyChanges {
 }
 
 function Invoke-TypographyDeployment {
+    Assert-NoReparsePath -Path $RuntimePython
+    Assert-NoReparsePath -Path (Join-Path $InstallRoot 'scripts\start-server.ps1')
     if (-not (Test-Path -LiteralPath $RuntimePython -PathType Leaf)) { throw 'Installed Python runtime missing' }
     if (-not (Test-Path -LiteralPath (Join-Path $InstallRoot 'scripts\start-server.ps1') -PathType Leaf)) {
         throw 'Installed startup script missing'
@@ -132,6 +189,7 @@ function Invoke-TypographyDeployment {
     $Changes = @(New-TypographyChanges)
     $OwnedProcesses = @(Get-OwnedServers)
     Assert-OwnedServerIdle -OwnedProcesses $OwnedProcesses
+    Assert-DeploymentChild -Root $SourceRoot -Path $BackupRoot
     New-Item -ItemType Directory -Path $BackupRoot | Out-Null
     $Number = 0
     foreach ($Change in $Changes) {
@@ -154,6 +212,8 @@ function Invoke-TypographyDeployment {
         Stop-OwnedServer -RequireIdle
         $Stopped = $true
         foreach ($Change in $Changes) {
+            Assert-DeploymentChild -Root $SourceRoot -Path $Change.source
+            Assert-DeploymentChild -Root $Change.target_root -Path $Change.target
             if ((Get-FileHash -LiteralPath $Change.source -Algorithm SHA256).Hash -ne $Change.source_sha256) {
                 throw "Source changed after preflight: $($Change.source)"
             }
@@ -171,6 +231,7 @@ function Invoke-TypographyDeployment {
         # Stop any replacement process before restoring modules it may use.
         Stop-OwnedServer
         foreach ($Change in $Changes) {
+            Assert-DeploymentChild -Root $Change.target_root -Path $Change.target
             if ($Change.existed) {
                 Copy-Item -LiteralPath $Change.backup -Destination $Change.target -Force
                 if ((Get-FileHash -LiteralPath $Change.target -Algorithm SHA256).Hash -ne $Change.original_sha256) {

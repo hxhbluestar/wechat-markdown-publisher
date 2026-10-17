@@ -7,7 +7,6 @@ them. Its HTTPS transport is independent of the WeChat network policy.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import html
 import http.client
@@ -23,6 +22,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from editor_service import DraftStore, EditorError, MAX_IMAGE_BYTES
+from editor_service import utc_now
 
 
 OFFICIAL_HOST = "rocm.blogs.amd.com"
@@ -362,6 +362,12 @@ def _parse_article(data, page_url):
     title = meta("og:title", "twitter:title") or (first_heading.get_text(" ", strip=True) if first_heading else "")
     if not title:
         raise EditorError("ROCm 正文缺少文章标题")
+    before = {'images': len(article.find_all('img')), 'fences': len(article.find_all('pre')), 'tables': len(article.find_all('table'))}
+    warnings = []
+    if article.find('svg'):
+        warnings.append('原文内联 SVG 未转换为图片；请对照原始 HTML 补充图表。')
+    if '\ufffd' in article.get_text():
+        warnings.append('原文包含无法解码的字符；请对照原始 HTML 检查文字。')
     author = meta("author", "amd_blog_authors", "article:author")
     source_url = validate_rocm_url(meta("og:url") or page_url, article=True)
     digest = meta("description", "og:description")
@@ -424,7 +430,8 @@ def _parse_article(data, page_url):
     markdown = "# " + _escape(title) + "\n\n" + byline + renderer.children(article).strip() + "\n"
     source_name = "ROCm-" + re.sub(r'[<>:"/\\|?*\x00-\x1f]', "-", title).strip(" .")[:180] + ".md"
     return {"title": title, "author": author, "source_url": source_url, "digest": digest,
-            "source_name": source_name, "content": markdown, "assets": assets}
+            "source_name": source_name, "content": markdown, "assets": assets,
+            "published_at": published, "before": before, "warnings": warnings}
 
 
 def _validate_image(data, content_type):
@@ -438,32 +445,88 @@ def _validate_image(data, content_type):
         raise EditorError("ROCm 图片内容与格式不匹配，已停止导入", 502)
 
 
-def import_rocm(store: DraftStore, url: Any, *, fetcher=None):
+def import_rocm(store: DraftStore, url: Any, *, fetcher=None, preview_only=False, allow_duplicate=False):
+    """Prepare all materials before preview or atomic creation of a new draft.
+
+    Preview returns title/report/duplicates/preview_content without writing files.
+    Normal import retains the historical return value (the created draft).
+    Duplicate conflicts expose safe ``duplicates`` and ``report`` attributes.
+    Original HTML is stored privately by create_prepared, never in the preview.
+    """
+    from article_import import ArticleImportError, _counts, _image_asset, _image_references
+
     page_url = validate_rocm_url(url, article=True)
     _parser()  # Fail before any download if the optional parser is missing.
     network = fetcher or OfficialFetcher()
     deadline = time.monotonic() + IMPORT_TIMEOUT
     page = network.fetch(page_url, max_bytes=MAX_HTML_BYTES, kind="html", deadline=deadline)
     page_url = validate_rocm_url(page.url, article=True)
+    if (not isinstance(page.data, bytes) or not page.data or len(page.data) > min(MAX_HTML_BYTES, MAX_TOTAL_BYTES)
+            or page.content_type not in ('text/html', 'application/xhtml+xml')):
+        raise EditorError('ROCm 原文为空、格式无效或超过导入限制', 413)
     parsed = _parse_article(page.data, page_url)
-    downloaded, total = {}, len(page.data)
+    downloaded, replacements, total = {}, {}, len(page.data)
     for source, relative in parsed["assets"].items():
-        image = network.fetch(source, max_bytes=min(MAX_IMAGE_BYTES, MAX_TOTAL_BYTES - total), kind="image", deadline=deadline)
+        remaining = min(MAX_IMAGE_BYTES, MAX_TOTAL_BYTES - total)
+        if remaining <= 0:
+            raise EditorError('ROCm 文件超过导入总体积限制', 413)
+        image = network.fetch(source, max_bytes=remaining, kind="image", deadline=deadline)
         validate_rocm_url(image.url)
+        if not isinstance(image.data, bytes) or not image.data or len(image.data) > remaining:
+            raise EditorError('ROCm 图片为空或超过导入体积限制', 413)
         _validate_image(image.data, image.content_type)
+        try:
+            asset = _image_asset(image.data)
+        except ArticleImportError as exc:
+            raise EditorError('ROCm 图片内容损坏或无法在本地验证，已停止导入', 502) from exc
+        if asset['mime'] != image.content_type:
+            raise EditorError('ROCm 图片内容与格式不匹配，已停止导入', 502)
         total += len(image.data)
-        downloaded[relative] = image.data
-    # No mutable draft exists until every network operation and conversion has
-    # succeeded. Any later storage failure deletes only this newly created ID.
-    draft = store.create(parsed["content"], title=parsed["title"], source_name=parsed["source_name"])
+        downloaded[asset['name']] = asset
+        replacements[relative] = asset['name']
+    content = parsed['content']
     try:
-        for relative, data in downloaded.items():
-            store.save_asset(draft["id"], relative, base64.b64encode(data).decode("ascii"))
-        metadata = {**draft["metadata"], "author": parsed["author"], "digest": parsed["digest"],
-                    "source_url": parsed["source_url"], "cover": next(iter(downloaded), "")}
-        return store.save(draft["id"], parsed["content"], metadata, draft["revision"])
+        for start, end, target in sorted(_image_references(content), reverse=True):
+            if target in replacements:
+                content = content[:start] + replacements[target] + content[end:]
+        after = _counts(content)
+    except ArticleImportError as exc:
+        raise EditorError('ROCm 转换后的正文结构无效，已停止导入', 502) from exc
+    fingerprint = hashlib.sha256(page.data).hexdigest()
+    imported_at = utc_now()
+    provenance = {'filename': PurePosixPath(parsed['source_name']).stem + '.html', 'kind': 'rocm',
+                  'sha256': fingerprint, 'source_url': parsed['source_url'], 'fetched_url': page_url, 'imported_at': imported_at}
+    warnings = list(parsed['warnings'])
+    if parsed['before'] != after:
+        warnings.append('转换前后的图片、代码块或表格数量有变化；请对照原始 HTML 检查。')
+    report = {'status': 'needs_review' if warnings else 'ready', 'before': parsed['before'], 'after': after,
+              'warnings': warnings, 'conversions': ['提取 ROCm 正文并移除导航和活动内容。', '转换代码、表格与题注；正文图片已下载并按内容哈希保存。'],
+              'remote_images': [], 'missing_images': [], 'fingerprint': fingerprint, 'provenance': provenance,
+              'content_sha256': hashlib.sha256(content.encode('utf-8')).hexdigest(), 'asset_count': len(downloaded), 'total_bytes': total}
+    metadata = {'title': parsed['title'], 'author': parsed['author'], 'digest': parsed['digest'],
+                'source_url': parsed['source_url'], 'cover': next(iter(downloaded), ''),
+                'source_author': parsed['author'], 'source_date': parsed['published_at'], 'published_at': parsed['published_at'],
+                'imported_at': imported_at, 'import_fingerprint': fingerprint, 'import_kind': 'rocm', 'article_type': 'rocm-repost'}
+    # Preparation, including every network request, stays outside the draft lock.
+    # Duplicate check and atomic publication share the store lock across windows.
+    try:
+        with store._lock:
+            duplicates = []
+            for item in store.list():
+                existing = store.get(item['id'])
+                meta = existing['metadata']
+                if (meta.get('import_fingerprint') == fingerprint or meta.get('source_url') in {parsed['source_url'], page_url}
+                        or existing['content'] == content):
+                    duplicates.append({'id': item['id'], 'title': item['title']})
+            if preview_only is True:
+                return {'title': parsed['title'], 'report': report, 'duplicates': duplicates, 'preview_content': content[:512*1024]}
+            if duplicates and allow_duplicate is not True:
+                error = EditorError('已存在相同来源或内容的稿件；确认后可创建新版本副本', 409)
+                error.duplicates, error.report = duplicates, report
+                raise error
+            return store.create_prepared(content, metadata, parsed['source_name'], assets=list(downloaded.values()),
+                                         source_original={**provenance, 'bytes': page.data}, report=report)
     except Exception as exc:
-        store.delete(draft["id"])
         if isinstance(exc, EditorError):
             raise
         raise EditorError("ROCm 导入保存失败，已撤销本次新稿件", 500) from exc

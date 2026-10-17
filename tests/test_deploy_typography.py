@@ -38,6 +38,22 @@ FILES = (
     "app/web/vendor/highlight-extras-11.11.1.js",
     "app/web/vendor/highlight-ai-20261017.js",
     "app/web/vendor/README.md",
+    "app/web/draft_history.py",
+    "app/web/article_import.py",
+    "app/web/article_package.py",
+    "app/web/asset_workbench.py",
+    "app/web/asset_service.py",
+    "app/web/server_preflight.py",
+    "app/web/sync_jobs.py",
+    "app/web/sync_workflow.py",
+    "app/web/sync_verification.py",
+    "app/web/editor/assets/index-20261018-workflow.js",
+    "app/web/editor/assets/workflow-ui-20261018.css",
+    "app/web/editor/assets/authoring-tools-20261018.css",
+    "app/web/editor/assets/asset-tools-20261018.css",
+    "app/web/editor/assets/sync-progress-20261018.css",
+    "app/web/vendor/mathjax-3.2.2/tex-svg.js",
+    "app/web/vendor/mathjax-3.2.2/LICENSE",
 )
 POWERSHELL = shutil.which("powershell.exe") or shutil.which("pwsh")
 
@@ -46,12 +62,21 @@ HARNESS = r"""
 param([string]$FixtureRoot, [string]$Scenario)
 $ErrorActionPreference = 'Stop'
 $env:LOCALAPPDATA = Join-Path $FixtureRoot 'profile'
-. (Join-Path $FixtureRoot 'source\tools\deploy-typography.ps1')
-$InstallRoot = Join-Path $FixtureRoot 'installed'
-$RuntimePython = Join-Path $InstallRoot 'runtime\python.exe'
-$ServerScript = Join-Path $InstallRoot 'app\web\server.py'
-$PidFile = Join-Path $InstallRoot 'data\server.pid'
 $script:Events = [System.Collections.Generic.List[string]]::new()
+$SelectedSource = Join-Path $FixtureRoot 'source'
+if ($Scenario -like 'worktree-*') { $SelectedSource = Join-Path $FixtureRoot '.worktrees\upgrade' }
+$Arguments = @{SourceRoot=$SelectedSource; InstallRoot=(Join-Path $FixtureRoot 'installed')}
+if ($Scenario -notin @('worktree-implicit','defaults')) { $Arguments.PackageRoot = $FixtureRoot }
+if ($Scenario -eq 'defaults') { $Arguments.Remove('SourceRoot') }
+if ($Scenario -eq 'same-roots') { $Arguments.PackageRoot = $SelectedSource }
+if ($Scenario -eq 'relative-root') { $Arguments.SourceRoot = 'source' }
+if ($Scenario -eq 'external-package') { $Arguments.PackageRoot = Join-Path $FixtureRoot 'different-package' }
+$Failure = ''
+try { . (Join-Path $SelectedSource 'tools\deploy-typography.ps1') @Arguments } catch {
+    @{error=$_.Exception.Message; events=@($script:Events); backup=''} |
+        ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $FixtureRoot 'result.json') -Encoding UTF8
+    exit 0
+}
 $script:Processes = @{
     111 = [pscustomobject]@{
         ProcessId=111; ExecutablePath=$RuntimePython;
@@ -109,6 +134,14 @@ function Copy-Item {
         $script:Corrupted = $true
     }
 }
+function Get-Item {
+    param($LiteralPath, [switch]$Force, $ErrorAction)
+    if (($Scenario -eq 'source-reparse' -and $LiteralPath -eq (Join-Path $SourceRoot 'app\web')) -or
+        ($Scenario -eq 'target-reparse' -and $LiteralPath -eq (Join-Path $InstallRoot 'app\web'))) {
+        return [pscustomobject]@{Attributes=[IO.FileAttributes]::ReparsePoint}
+    }
+    Microsoft.PowerShell.Management\Get-Item -LiteralPath $LiteralPath -Force:$Force -ErrorAction Stop
+}
 $Failure = ''
 try { Invoke-TypographyDeployment | Out-Null } catch { $Failure = $_.Exception.Message }
 @{error=$Failure; events=@($script:Events); backup=$BackupRoot} |
@@ -126,6 +159,9 @@ class TypographyDeploymentTests(unittest.TestCase):
         self.source = self.root / "source"
         (self.source / "tools").mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.source / "tools" / SCRIPT.name)
+        self.assertTrue((ROOT / 'config/deployment-files.json').is_file(), 'The deployment manifest is missing')
+        (self.source / 'config').mkdir()
+        shutil.copyfile(ROOT / 'config/deployment-files.json', self.source / 'config/deployment-files.json')
         for relative in FILES:
             path = self.source / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,6 +189,10 @@ class TypographyDeploymentTests(unittest.TestCase):
         (self.root / "harness.ps1").write_text(HARNESS, encoding="utf-8-sig")
 
     def run_deployment(self, scenario: str) -> dict:
+        if scenario.startswith('worktree-'):
+            shutil.copytree(self.source, self.root / '.worktrees/upgrade')
+        if scenario == 'external-package':
+            (self.root / 'different-package').mkdir()
         runtime_env = dict(os.environ)
         if Path(POWERSHELL).name.lower() == "powershell.exe":
             # Python can inherit PowerShell 7 module paths; Windows PowerShell
@@ -223,6 +263,67 @@ class TypographyDeploymentTests(unittest.TestCase):
             "start:1:old:app/web/server.py",
         ])
         self.assert_original_files()
+
+    def test_worktree_requires_explicit_package_root_before_stopping_any_process(self):
+        result = self.run_deployment('worktree-implicit')
+        self.assertIn('PackageRoot', result['error'])
+        self.assertEqual(result['events'], [])
+        self.assert_original_files()
+
+    def test_explicit_worktree_roots_target_real_package_payload(self):
+        result = self.run_deployment('worktree-explicit')
+        self.assertEqual(result['error'], '')
+        self.assertEqual((self.root / 'payload/app/web/article_import.py').read_text(), 'new:app/web/article_import.py')
+        self.assertFalse((self.root / '.worktrees/payload').exists())
+
+    def test_primary_source_defaults_retain_parent_package_behavior(self):
+        result = self.run_deployment('defaults')
+        self.assertEqual(result['error'], '')
+        self.assertEqual((self.root / 'payload/app/web/article_import.py').read_text(), 'new:app/web/article_import.py')
+
+    def test_explicit_external_package_root_does_not_change_source_parent_payload(self):
+        result = self.run_deployment('external-package')
+        self.assertEqual(result['error'], '')
+        self.assertEqual((self.root / 'different-package/payload/app/web/server.py').read_text(), 'new:app/web/server.py')
+        self.assertEqual((self.root / 'payload/app/web/server.py').read_text(), 'old:app/web/server.py')
+
+    def test_same_source_package_root_and_unsafe_manifest_fail_before_service_changes(self):
+        result = self.run_deployment('same-roots')
+        self.assertTrue(result['error'])
+        self.assertEqual(result['events'], [])
+        self.assert_original_files()
+        for relative in ['../escape.py', 'data/private/wechat-accounts.json', 'app/web/company_network.py', 'runtime/python.exe', 'scripts/start-server.ps1']:
+            manifest = json.loads((ROOT / 'config/deployment-files.json').read_text())
+            manifest['files'].append(relative)
+            (self.source / 'config/deployment-files.json').write_text(json.dumps(manifest), encoding='utf-8')
+            with self.subTest(relative=relative):
+                result = self.run_deployment('success')
+                self.assertTrue(result['error'])
+                self.assertEqual(result['events'], [])
+                self.assert_original_files()
+
+    def test_missing_new_module_and_ambiguous_manifest_are_rejected_before_backup(self):
+        (self.source / 'app/web/article_import.py').unlink()
+        result = self.run_deployment('success')
+        self.assertIn('Missing source', result['error'])
+        self.assertEqual(result['events'], [])
+        self.assert_original_files()
+        (self.source / 'app/web/article_import.py').write_text('new:app/web/article_import.py')
+        manifest = json.loads((self.source / 'config/deployment-files.json').read_text())
+        manifest['files'].append('APP/WEB/SERVER.PY')
+        (self.source / 'config/deployment-files.json').write_text(json.dumps(manifest), encoding='utf-8')
+        result = self.run_deployment('success')
+        self.assertTrue(result['error'])
+        self.assertEqual(result['events'], [])
+        self.assert_original_files()
+
+    def test_source_and_target_reparse_points_and_relative_roots_are_rejected(self):
+        for scenario in ['source-reparse', 'target-reparse', 'relative-root']:
+            with self.subTest(scenario=scenario):
+                result = self.run_deployment(scenario)
+                self.assertTrue(result['error'])
+                self.assertEqual(result['events'], [])
+                self.assert_original_files()
 
 
 if __name__ == "__main__":

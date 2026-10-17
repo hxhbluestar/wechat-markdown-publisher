@@ -1,0 +1,95 @@
+name: Synthetic regression and reproducible build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked frontend dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Install pinned image and HTML test dependencies
+        run: python -m pip install beautifulsoup4==4.15.0 Pillow==12.3.0
+      - name: Python synthetic regressions
+        run: python -X utf8 -m unittest discover -s tests -p "test_*.py" -v
+      - name: Node and DOM regressions
+        run: npm test
+      - name: Build readable application entry
+        run: npm run build
+      - name: Verify a second build produces identical bytes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Get-BuildHashes {
+            $Paths = @('app/web/editor/index.html', 'app/web/editor/assets', 'app/web/vendor/highlight-ai-20261017.js', 'app/web/vendor/mathjax-3.2.2')
+            @(Get-ChildItem -LiteralPath $Paths -File -Recurse | Sort-Object FullName | ForEach-Object {
+              $_.FullName + '=' + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+            })
+          }
+          $Before = Get-BuildHashes
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Second build failed' }
+          $After = Get-BuildHashes
+          if (Compare-Object $Before $After) { throw 'Build output is not byte-for-byte reproducible' }
+          git diff --exit-code -- app/web/editor/index.html app/web/editor/assets app/web/vendor/highlight-ai-20261017.js app/web/vendor/mathjax-3.2.2
+          if ($LASTEXITCODE -ne 0) { throw 'Committed artifacts differ from the readable build' }
+      - name: Scan first-party tracked sources without printing sensitive values
+        shell: python
+        run: |
+          import pathlib, re, subprocess
+          root = pathlib.Path.cwd()
+          files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          forbidden = {'private','data','logs','runtime','output','knowledge_base','.cache','releases','snapshots'}
+          patterns = {
+              'credential-token': r'(?:gh[pousr]_[A-Za-z0-9_]{25,}|github_pat_[A-Za-z0-9_]{30,}|sk-(?:proj-)?[A-Za-z0-9_-]{30,})',
+              'private-key': r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----',
+              'literal-credential': r'''(?i)(?:app_secret|appsecret|access_token|refresh_token|password)\s*[:=]\s*["'][A-Za-z0-9_-]{16,}["']''',
+              'wechat-app-id': r'\bwx[0-9a-f]{16}\b',
+          }
+          findings = []
+          for relative in filter(None, files):
+              path = pathlib.PurePosixPath(relative)
+              if any(part.lower() in forbidden for part in path.parts):
+                  findings.append((relative, 'private-runtime-path'))
+              if relative.startswith(('tests/', 'frontend/vendor/', 'app/web/vendor/', 'app/web/editor/assets/')):
+                  continue
+              if not relative.startswith(('app/', 'frontend/', 'tools/', 'config/')):
+                  continue
+              try:
+                  text = (root / relative).read_text('utf-8-sig')
+              except UnicodeError:
+                  continue
+              for category, pattern in patterns.items():
+                  if re.search(pattern, text):
+                      findings.append((relative, category))
+          for filename, category in findings:
+              print(filename, category)
+          if findings:
+              raise SystemExit('First-party credential scan failed; matched values were not printed')
+          print('First-party credential/path scan passed; synthetic fixtures and pinned bundles are outside this limited scan.')
+      - name: Advisory npm registry vulnerability report
+        continue-on-error: true
+        shell: pwsh
+        run: npm audit --registry=https://registry.npmjs.org --audit-level=high --json > npm-audit.json
+      - name: Preserve advisory audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit
+          path: npm-audit.json
+          if-no-files-found: ignore
