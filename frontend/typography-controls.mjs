@@ -1,5 +1,12 @@
 import {normalizeTypography} from './typography.mjs';
 
+const MAIN_THEMES = {technical:'AMD 技术蓝',minimal:'极简墨色',journal:'纸感期刊',obsidian:'曜石青'};
+const SAVED_THEMES = {deepsea:'深海青',teal:'青绿实验室',grace:'雅致',default:'简洁',simple:'留白'};
+
+export function themeOptionsMarkup() {
+  return Object.entries(MAIN_THEMES).map(([id,label])=>`<option value="${id}">${label}</option>`).join('');
+}
+
 export function typographyControlsMarkup() {
   return `<div class="typography-options" aria-label="文章排版设置">
     <label>正文字体<select id="fontFamilySelect"><option value="theme">随版式</option><option value="sans">系统黑体</option><option value="serif">阅读宋体</option></select></label>
@@ -35,6 +42,20 @@ export function connectTypographyControls(container, onChange = () => {}) {
   }
   function load(metadata={}) {
     currentTheme=metadata.theme||'technical';
+    const blue=container.querySelector('#paletteSelect option[value="blue"]');
+    if (blue) blue.textContent=['grace','default','simple'].includes(currentTheme)?'科技蓝（旧版）':'AMD 官网蓝';
+    const themes=container.querySelector('#themeSelect');
+    if (themes) {
+      // A saved old ID is a compatibility choice, never a migration or alias.
+      for (const option of [...themes.querySelectorAll('[data-saved-theme]')]) option.remove();
+      if (Object.hasOwn(SAVED_THEMES,currentTheme)) {
+        const option=themes.ownerDocument.createElement('option');
+        option.value=currentTheme;
+        option.textContent='已保存 · '+SAVED_THEMES[currentTheme];
+        option.setAttribute('data-saved-theme','');
+        themes.append(option);
+      }
+    }
     const values=normalizeTypography(metadata,currentTheme);
     for (const [key,element] of Object.entries(fields)) {
       for (const option of element.options) option.selected=false;

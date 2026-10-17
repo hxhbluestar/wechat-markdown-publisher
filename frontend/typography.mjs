@@ -22,7 +22,7 @@ export function normalizeTypography(settings, theme = 'technical') {
 }
 
 const THEMES = {
-  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#28639e', rule: '#e1e7ec', tint: '#f0f5fa', code: '#142236', codeInk: '#e2eaf5', codeRule: '#2c3d55', label: '#a9c0dc', keyword: '#c2b4ff', string: '#a9dcc3', comment: '#9aacc4', number: '#f0c899', fn: '#95c8ff', addition: '#b4e5c5', deletion: '#ffb3b8' },
+  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#2c3d55', label: '#a9c0dc', keyword: '#c2b4ff', string: '#a9dcc3', comment: '#9aacc4', number: '#f0c899', fn: '#95c8ff', addition: '#b4e5c5', deletion: '#ffb3b8' },
   journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#7c7061', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451', keyword: '#744196', string: '#376d50', comment: '#6d665b', number: '#985934', fn: '#236e85', addition: '#27633f', deletion: '#a33e3e' },
   minimal: { paper: '#ffffff', ink: '#25272b', secondary: '#666b73', accent: '#3c4653', rule: '#dfe2e7', tint: '#f2f4f6', code: '#f2f4f6', codeInk: '#313b48', codeRule: '#dce1e8', label: '#657082', keyword: '#805292', string: '#3f7358', comment: '#656d77', number: '#946233', fn: '#356181', addition: '#27633f', deletion: '#a33e3e' },
   obsidian: { dark: true, darkCode: true, paper: '#111b22', ink: '#e6edf3', secondary: '#abbcc6', accent: '#69d7c1', rule: '#344b58', tint: '#1c313b', code: '#0b141c', codeInk: '#e5eff5', codeRule: '#2b424f', label: '#b3c8d5', keyword: '#d8bcff', string: '#a5e2c6', comment: '#a4b8c5', number: '#f5c99d', fn: '#9dd6ff', addition: '#b4e5c5', deletion: '#ffb9c0' },
@@ -34,7 +34,7 @@ const THEMES = {
 // changes article accents only. Green/gold text is darker than their borders
 // so links and small inline parameters remain readable on the light papers.
 const PALETTES = {
-  blue: { accent: '#2563eb', accentLine: '#2563eb', tint: '#eff6ff' },
+  blue: { accent: '#0051c6', accentLine: '#0051c6', tint: '#eff6ff' },
   wechat: { accent: '#078340', accentLine: '#07c160', tint: '#effaf4' },
   red: { accent: '#b33a3a', accentLine: '#b33a3a', tint: '#fff1f1' },
   violet: { accent: '#7c3aed', accentLine: '#7c3aed', tint: '#f5f1ff' },
@@ -42,12 +42,22 @@ const PALETTES = {
 };
 
 const DARK_PALETTES = {
-  blue: { accent: '#9ec5ff', accentLine: '#79adf4', tint: '#1a2c43' },
+  blue: { accent: '#2899ff', accentLine: '#2899ff', tint: '#1a2c43' },
   wechat: { accent: '#86e2b4', accentLine: '#68d59b', tint: '#18372e' },
   red: { accent: '#ffb3b3', accentLine: '#e99595', tint: '#3a242c' },
   violet: { accent: '#d0b7ff', accentLine: '#b89beb', tint: '#30263f' },
   ink: { accent: '#ead09a', accentLine: '#d2b376', tint: '#343025' },
 };
+
+export function typographyAccent(theme, palette) {
+  if (!NEW_THEMES.has(theme)) return null;
+  const colors = THEMES[theme].dark ? DARK_PALETTES : PALETTES;
+  return (Object.hasOwn(colors,palette) ? colors[palette].accent : null) || THEMES[theme].accent;
+}
+
+export function escapeHtmlAttribute(value) {
+  return String(value ?? '').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+}
 
 function rule(selectors, declarations) {
   const scoped = selectors.split(',').map((selector) => `#output .wx-typography${selector.trim() ? ` ${selector.trim()}` : ''}`).join(',\n');
@@ -131,9 +141,20 @@ function typographyCSS(settings, theme, fresh, palette) {
   css += rule('hr', { border: '0', 'border-top': `1px solid ${c.rule}`, margin: '28px 0', height: '0', background: 'transparent' });
   css += rule('img', { 'max-width': '100%', height: 'auto' });
   css += rule('figcaption', { color: c.secondary, 'font-size': '12px', 'line-height': '1.75', 'text-align': 'center', margin: '9px 0 18px' });
+  if (theme === 'technical') css += technicalCSS(c, accentLine);
   css += laboratoryCSS(theme, c, accentLine);
   css += smallTextCSS(settings, true);
   return css;
+}
+
+function technicalCSS(c, accent) {
+  return rule('h2', { color: c.accent, 'font-size': '20px', 'font-weight': '700', margin: '30px 0 15px', padding: '0 0 0 10px', 'border-left': `2px solid ${accent}` }) +
+    rule('h3', { color: c.accent, 'font-size': '18px', 'font-weight': '600', margin: '24px 0 12px', padding: '0', 'border-left': '0' }) +
+    rule('h2 strong,h3 strong', { color: c.accent }) +
+    rule('blockquote', { color: c.ink, background: c.tint, padding: '13px 16px', margin: '22px 0 24px', 'border-left': `2px solid ${accent}`, 'border-radius': '0' }) +
+    rule('blockquote p', { color: c.ink }) +
+    rule('blockquote blockquote', { background: 'transparent', padding: '0 0 0 12px', margin: '14px 0 0', 'border-left': `1px solid ${c.rule}` }) +
+    rule('blockquote p:last-child', { 'margin-bottom': '0' });
 }
 
 function laboratoryCSS(theme, c, accent) {
@@ -453,20 +474,29 @@ function prepareSmallText(root, settings, fresh) {
 
 function prepareAlerts(root, document) {
   const labels = { note: '提示', tip: '建议', warning: '注意', important: '重要', caution: '警告' };
-  for (const quote of [...root.querySelectorAll('blockquote')]) {
-    const classMatch = /(?:^|\s)markdown-alert-(note|tip|warning|important|caution)(?:\s|$)/.exec(quote.className);
+  const sphinxKinds = { note: 'note', tip: 'tip', hint: 'tip', warning: 'warning', attention: 'warning', important: 'important', caution: 'caution', danger: 'caution', error: 'caution' };
+  for (const quote of [...root.querySelectorAll('blockquote,.admonition')]) {
+    if (quote.closest('pre,code')) continue;
+    const classMatch = /(?:^|\s)(?:markdown-alert|wx-alert)-(note|tip|warning|important|caution)(?:\s|$)/.exec(quote.className);
+    const sphinx = quote.classList.contains('admonition');
+    const sphinxKind = sphinx ? Object.keys(sphinxKinds).find((kind) => quote.classList.contains(kind)) : null;
+    const titles = [...quote.children].filter((element) => element.matches('.markdown-alert-title,.admonition-title,.wx-alert-title'));
     const firstParagraph = [...quote.children].find((child) => child.tagName === 'P');
     const marker = firstParagraph && /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.exec(firstParagraph.textContent);
-    const kind = classMatch?.[1] || marker?.[1].toLowerCase();
+    const kind = classMatch?.[1] || (sphinxKind && sphinxKinds[sphinxKind]) || marker?.[1].toLowerCase() || (sphinx ? 'note' : null);
     if (!kind) continue;
     quote.classList.add('wx-alert', `wx-alert-${kind}`);
-    let title = quote.querySelector('.markdown-alert-title,.wx-alert-title');
+    let title = titles[0];
     if (!title) {
       title = document.createElement('p');
       title.textContent = labels[kind];
       quote.insertBefore(title, quote.firstChild);
     }
     title.classList.add('wx-alert-title');
+    const titleText = title.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+    for (const duplicate of titles.slice(1)) {
+      if (duplicate.textContent.replace(/\s+/g, ' ').trim().toLowerCase() === titleText) duplicate.remove();
+    }
     if (marker) {
       // Marked's ordinary quote output starts this marker in the first text node.
       const text = [...firstParagraph.childNodes].find((node) => node.nodeType === 3 && /^\[!/i.test(node.nodeValue));

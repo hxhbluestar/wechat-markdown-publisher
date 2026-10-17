@@ -227,9 +227,41 @@ test('theme and explicit font controls yield system fallback fonts and readable 
   assert.equal(computedRule(overridden.css, '#output .wx-typography p', 'font-size'), '18px');
 });
 
+test('technical links and blue palette follow the official ROCm light and dark accent colors', () => {
+  const html = '<h2><strong>实验条件</strong></h2><h3>验证方法</h3><p><a href="https://example.com">文档</a> <code>参数</code></p>';
+  const technical = render(html);
+  assert.equal(resolvedRule(technical.css, technical.holder.querySelector('a'), 'color'), '#0051c6');
+  for (const theme of ['technical', 'journal', 'minimal']) {
+    const light = render(html, { theme, palette: 'blue' });
+    assert.equal(resolvedRule(light.css, light.holder.querySelector('a'), 'color'), '#0051c6');
+  }
+  const dark = render(html, { theme: 'obsidian', palette: 'blue' });
+  assert.equal(resolvedRule(dark.css, dark.holder.querySelector('a'), 'color'), '#2899ff');
+  assert.ok(contrast('#2899ff', computedRule(dark.css, '#output .wx-typography', 'background')) >= 4.5);
+  assert.ok(contrast('#2899ff', computedRule(dark.css, '#output .wx-typography p code', 'background')) >= 4.5);
+});
+
+test('technical heading hierarchy and nested quotes provide blue emphasis and readable space', () => {
+  const html = '<h2><strong>实验条件</strong></h2><h3>验证方法</h3><p>正文内容</p><blockquote><p>外层引用</p><blockquote><p>内层引用</p></blockquote></blockquote>';
+  const { holder, css } = render(html);
+  assert.equal(resolvedRule(css, holder.querySelector('h2 strong'), 'color'), '#0051c6');
+  assert.equal(resolvedRule(css, holder.querySelector('h3'), 'color'), '#0051c6');
+  assert.ok(Number.parseFloat(resolvedRule(css, holder.querySelector('h2'), 'font-size')) > Number.parseFloat(resolvedRule(css, holder.querySelector('h3'), 'font-size')));
+  const quote = holder.querySelector('blockquote');
+  const nested = quote.querySelector('blockquote');
+  assert.equal(resolvedRule(css, quote, 'background'), '#eff6ff');
+  assert.equal(resolvedRule(css, quote, 'border-left'), '2px solid #0051c6');
+  assert.equal(resolvedRule(css, quote, 'padding'), '13px 16px');
+  assert.equal(resolvedRule(css, nested, 'padding'), '0 0 0 12px');
+  assert.equal(resolvedRule(css, nested, 'margin'), '14px 0 0');
+  assert.equal(resolvedRule(css, nested, 'background'), 'transparent');
+  assert.ok(contrast(resolvedRule(css, quote.querySelector('p'), 'color'), resolvedRule(css, quote, 'background')) >= 4.5);
+  assert.equal(holder.textContent, '实验条件验证方法正文内容外层引用内层引用');
+});
+
 test('new theme palettes color article accents while preserving paper and code contrast', () => {
   const palettes = [
-    { name: 'blue', text: '#2563eb', border: '#2563eb', tint: '#eff6ff' },
+    { name: 'blue', text: '#0051c6', border: '#0051c6', tint: '#eff6ff' },
     { name: 'wechat', text: '#078340', border: '#07c160', tint: '#effaf4' },
     { name: 'red', text: '#b33a3a', border: '#b33a3a', tint: '#fff1f1' },
     { name: 'violet', text: '#7c3aed', border: '#7c3aed', tint: '#f5f1ff' },
@@ -574,5 +606,35 @@ test('alerts have readable headings without duplicating existing markdown alert 
   assert.equal(holder.querySelector('.wx-alert strong').textContent, '保留重点');
   assert.doesNotMatch(holder.textContent, /\[!NOTE\]/);
   assert.equal(computedRule(css, '#output .wx-typography .wx-alert', 'font-style'), 'normal');
+  assert.equal(holder.querySelectorAll('script,button').length, 0);
+});
+
+test('raw Sphinx note warning and tip blocks become alerts without losing their existing titles or content', () => {
+  const html = '<div class="admonition note"><p class="admonition-title">Note</p><p>保留 <strong>重点</strong> 和 <a href="https://example.com/docs">来源</a>。</p></div><div class="admonition warning"><p class="admonition-title">Warning</p><p>检查实验条件。</p><div class="admonition tip"><p class="admonition-title">Tip</p><p>记录完整环境。</p></div></div>';
+  for (const theme of ['technical', 'minimal', 'journal', 'obsidian', 'deepsea', 'teal']) {
+    const result = render(html, { theme });
+    assert.equal(result.holder.querySelectorAll('.wx-alert').length, 3);
+    for (const [kind, title] of [['note', 'Note'], ['warning', 'Warning'], ['tip', 'Tip']]) {
+      const alert = result.holder.querySelector(`.admonition.${kind}`);
+      assert.ok(alert.classList.contains(`wx-alert-${kind}`));
+      assert.equal([...alert.children].filter((element) => element.classList.contains('wx-alert-title')).length, 1);
+      assert.equal([...alert.children].find((element) => element.classList.contains('wx-alert-title')).textContent, title);
+    }
+    assert.equal(result.holder.querySelector('.wx-alert-note strong').textContent, '重点');
+    assert.equal(result.holder.querySelector('.wx-alert-note a').getAttribute('href'), 'https://example.com/docs');
+    const repeated = render(result.html, { theme });
+    assert.equal(repeated.holder.querySelectorAll('.wx-alert-title').length, 3);
+    assert.equal(repeated.holder.textContent, result.holder.textContent);
+  }
+  assert.deepEqual(prepareTypography(html, { theme: 'grace' }, document, highlighter), { html, css: '' });
+});
+
+test('Sphinx title deduplication removes duplicate heading elements while retaining body words and code examples', () => {
+  const html = '<div class="admonition note"><p class="admonition-title">Note</p><p class="admonition-title">Note</p><p>Note 是说明正文中的单词。</p></div><pre><code class="language-html">&lt;div class="admonition warning"&gt;example&lt;/div&gt;</code></pre>';
+  const { holder } = render(html);
+  assert.equal(holder.querySelector('.admonition').querySelectorAll('.admonition-title').length, 1);
+  assert.match(holder.querySelector('.admonition').textContent, /Note 是说明正文中的单词/);
+  assert.equal(holder.querySelector('pre code').textContent, '<div class="admonition warning">example</div>');
+  assert.equal(holder.querySelectorAll('.wx-alert').length, 1);
   assert.equal(holder.querySelectorAll('script,button').length, 0);
 });

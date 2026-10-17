@@ -261,9 +261,15 @@ class DraftStore:
                 "updated_at": now,
                 "metadata": metadata,
             }
-            atomic_write(article_path, content.encode("utf-8"))
-            atomic_json(meta_path, record)
-            atomic_json(state_path, {})
+            try:
+                atomic_write(article_path, content.encode("utf-8"))
+                atomic_json(meta_path, record)
+                atomic_json(state_path, {})
+            except Exception:
+                # A failed first save has no revision to recover from. Remove
+                # only the directory just allocated by this locked create.
+                shutil.rmtree(folder)
+                raise
         return self.get(draft_id)
 
     def get(self, draft_id: str) -> dict[str, Any]:

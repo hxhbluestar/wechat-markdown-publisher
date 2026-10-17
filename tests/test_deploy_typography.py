@@ -19,13 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "deploy-typography.ps1"
 FILES = (
     "app/web/server.py",
+    "app/web/rocm_import.py",
     "app/web/editor_service.py",
     "app/web/editor_security.py",
     "app/web/editor/index.html",
-    "app/web/editor/assets/index-20261017-lab.js",
-    "app/web/editor/assets/typography-20261017-lab.mjs",
-    "app/web/editor/assets/typography-controls-20261017-lab.mjs",
-    "app/web/editor/assets/typography-controls-20261017-lab.css",
+    "app/web/editor/assets/index-20261017-rocm.js",
+    "app/web/editor/assets/typography-20261017-rocm.mjs",
+    "app/web/editor/assets/typography-controls-20261017-rocm.mjs",
+    "app/web/editor/assets/typography-controls-20261017-rocm.css",
+    "app/web/editor/assets/rocm-import-20261017.mjs",
     "app/web/vendor/highlight-powershell-11.11.1.min.js",
     "app/web/vendor/README.md",
 )
@@ -160,8 +162,10 @@ class TypographyDeploymentTests(unittest.TestCase):
         for path, expected in self.originals.items():
             self.assertEqual(path.read_text("utf-8"), expected, str(path))
         for target_root in (self.root / "installed", self.root / "payload"):
-            for relative in FILES[2:]:
-                self.assertFalse((target_root / relative).exists(), str(target_root / relative))
+            for relative in FILES:
+                target=target_root / relative
+                if target not in self.originals:
+                    self.assertFalse(target.exists(), str(target))
 
     def test_success_copies_only_allowlisted_files_and_records_verified_hashes(self) -> None:
         result = self.run_deployment("success")

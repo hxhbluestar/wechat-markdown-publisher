@@ -3,7 +3,31 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {parseHTML} from 'linkedom';
-import {typographyControlsMarkup,connectTypographyControls} from '../frontend/typography-controls.mjs';
+import {typographyControlsMarkup,connectTypographyControls,themeOptionsMarkup} from '../frontend/typography-controls.mjs';
+import {typographyAccent} from '../frontend/typography.mjs';
+
+test('the editor color indicator follows the actual layout accent while legacy palettes retain their source',()=>{
+  assert.equal(typographyAccent('technical','warm'),'#0051c6');
+  assert.equal(typographyAccent('journal','warm'),'#8b563b');
+  assert.equal(typographyAccent('obsidian','blue'),'#2899ff');
+  assert.equal(typographyAccent('grace','blue'),null);
+});
+
+test('four distinct templates are offered and a saved older template remains loadable without migration', () => {
+  const {document}=parseHTML(`<main><select id="themeSelect">${themeOptionsMarkup()}</select>${typographyControlsMarkup()}</main>`);
+  const select=document.querySelector('#themeSelect');
+  assert.deepEqual([...select.options].map(o=>o.value),['technical','minimal','journal','obsidian']);
+  const controls=connectTypographyControls(document);
+  controls.load({theme:'deepsea'});
+  assert.equal(select.options.length,5);
+  assert.match([...select.options].find(o=>o.value==='deepsea').textContent,/已保存/);
+  controls.load({theme:'grace'});
+  assert.equal(select.options.length,5);
+  assert.ok([...select.options].some(o=>o.value==='grace'));
+  assert.ok(![...select.options].some(o=>o.value==='deepsea'));
+  controls.themeChanged('technical');
+  assert.equal(select.options.length,4);
+});
 
 test('typography controls offer fonts, size, code wrapping, tables and phone widths', () => {
   const {document} = parseHTML(`<main>${typographyControlsMarkup()}</main>`);

@@ -94,8 +94,22 @@ try {
   check(legacyHost.querySelector('pre').scrollWidth<=legacyHost.querySelector('pre').clientWidth,'legacy explicit reading wrap contains a very long code word');
   legacyHost.remove();
   const themeControl=document.querySelector('#themeSelect');
+  const quotedCaption='Figure 1: "optimized" & path';
+  const quotedMarkdown='![示意]('+image+' "Figure 1: \\"optimized\\" & path")';
+  const quotedDocument=new DOMParser().parseFromString(renderer.exportWechatArticle(quotedMarkdown,'technical','warm',settings),'text/html');
+  check(quotedDocument.querySelector('figcaption')?.textContent===quotedCaption,'quoted ROCm figure captions keep their complete text through Markdown and inlining');
+  for (const [theme,blue] of [['technical','rgb(0, 81, 198)'],['obsidian','rgb(40, 153, 255)']]) {
+    const host=document.createElement('div');
+    host.style.width='272px';
+    host.innerHTML=renderer.exportWechatArticle('## 标题\n\n### 小节\n\n[官方链接](https://rocm.blogs.amd.com/)\n\n> 分层引用内容\n\n<div class="admonition note"><p class="admonition-title">Note</p><p>保留 <strong>重点</strong> 与说明。</p></div>',theme,'blue',{font_size:17,code_wrap:'wrap',table_mode:'auto'});
+    document.body.appendChild(host);
+    check(getComputedStyle(host.querySelector('a')).color===blue,theme+' exported link matches official ROCm accent');
+    check(!host.querySelector('[class],script,style') && host.textContent.includes('重点'),theme+' raw Sphinx note survives class-free inline export');
+    check(host.scrollWidth<=host.clientWidth,theme+' headings and notes fit the narrow article');
+    host.remove();
+  }
   await import('/editor/assets/mermaid.core-CgMKsg4i.js');
-  check(document.querySelector('#themeSelect')===themeControl && themeControl.options.length===9,'lazy diagram components reuse the active editor without bootstrapping the old bundle');
+  check(document.querySelector('#themeSelect')===themeControl && [...themeControl.options].slice(0,4).map(o=>o.value).join(',')==='technical,minimal,journal,obsidian' && themeControl.options.length<=5,'lazy diagram components reuse the four-template editor without bootstrapping the old bundle');
   report.dataset.status='passed';
   report.textContent=results.join('\n');
 } catch (error) {

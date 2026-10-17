@@ -3,7 +3,7 @@
 星河炸鸡 · 本地内容归档阅读器
 
 只读扫描既有归档目录，生成内存索引并提供分页、检索、结构化文章和
-支持 Range 的本地媒体服务。运行期不访问互联网。
+支持 Range 的本地媒体服务。编辑器按用户操作导入 ROCm 博客或调用微信接口。
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ from editor_service import (
 )
 from archive_service import ArchiveTaskError, ArchiveTaskManager
 from editor_security import import_map_csp
+from rocm_import import import_rocm
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -1268,6 +1269,10 @@ class Handler(SimpleHTTPRequestHandler):
                     source_name=str(payload.get("source_name") or ""),
                 )
                 return self.send_json(draft, 201)
+
+            if path == "/api/editor/import-rocm":
+                draft = import_rocm(DRAFT_STORE, payload.get("url"))
+                return self.send_json({"draft": draft}, 201)
 
             if path == "/api/wechat/accounts":
                 account = WECHAT_ACCOUNTS.create(

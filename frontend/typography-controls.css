@@ -7,6 +7,9 @@
 .preview-tabs button,.preview-options label { white-space: nowrap; }
 .phone-stage { scroll-padding: 12px; }
 .wechat-preview,.reader-preview { box-sizing: border-box; }
+.rocm-import-form { padding: 20px 24px 24px; }
+.rocm-import-hint { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 0; }
+.rocm-import-form input { min-width: 0; width: 100%; box-sizing: border-box; }
 @media (min-width: 1081px) and (max-width: 1450px) {
   .compose-grid { grid-template-columns: minmax(320px,1fr) minmax(480px,1fr); }
   .publish-panel { display: none; }
