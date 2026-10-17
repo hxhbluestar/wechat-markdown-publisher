@@ -4,6 +4,8 @@
 .preview-options { flex-wrap: wrap; }
 .preview-toolbar { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
 .preview-tabs { flex: 0 0 auto; }
+.sync-scroll-toggle { flex: 0 0 auto; padding: 5px 8px; height: 29px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.sync-scroll-toggle[aria-pressed="true"] { color: var(--accent); border-color: currentColor; background: color-mix(in srgb,var(--accent) 8%,transparent); }
 .preview-tabs button,.preview-options label { white-space: nowrap; }
 .phone-stage { scroll-padding: 12px; }
 .wechat-preview,.reader-preview { box-sizing: border-box; }

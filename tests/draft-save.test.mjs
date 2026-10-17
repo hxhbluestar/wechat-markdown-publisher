@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 // Exercise the shared function actually shipped to Save, Ctrl+S and proofreading.
-const bundle=readFileSync(new URL('../app/web/editor/assets/index-20261017-proof.js',import.meta.url),'utf8');
+const bundle=readFileSync(new URL('../app/web/editor/assets/index-20261017-scroll.js',import.meta.url),'utf8');
 const start=bundle.includes('let pendingDraftSave=')?bundle.indexOf('let pendingDraftSave='):bundle.indexOf('async function wp()');
 const code=bundle.slice(start,bundle.indexOf('async function WS(',start));
 function harness(){

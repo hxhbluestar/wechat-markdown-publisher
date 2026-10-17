@@ -85,6 +85,16 @@ Apple 尺寸参考 [Apple 布局规范](https://developer.apple.com/cn/design/hu
 
 设备、方向和显示比例仅用于当前浏览器预览，不写入稿件、不同步到微信，也不改变六项排版设置。预览框架只在编辑器外层，导出/同步 HTML 不包含设备缩放、固定宽度或机型外壳。它用于检查排版，不模拟微信客户端字体、浏览器内核或真实折痕；最终效果仍需微信草稿预览确认。
 
+## 双向同步滚动
+
+预览工具栏的“⇅ 同步滚动”默认开启。滚动左侧 Markdown 编辑区会带动右侧预览，滚动右侧也会定位左侧；点击开关可独立查看。开关状态仅保存在当前浏览器，不修改稿件或排版元数据。
+
+同步采用标题、段落、列表、引用、代码块、表格等对应内容块定位，块内按相对进度映射，减少图片与代码高度不同造成的偏移。图片区尺寸、设备宽度、方向或预览缩放发生变化时会重新计算；公众号预览和本站预览均支持。正文改变时，等待新预览完成后再同步，避免沿用旧映射。
+
+到达顶部或底部时两侧同步到边界。代码与表格内部的横向滚动独立；滚动不改变光标、选区或保存状态，切换稿件后从顶部开始。对于不能精确匹配的自定义 HTML 或复杂组件，使用相邻已匹配块或全文进度作近似定位。
+
+内容位置标记只添加在编辑器预览 DOM 中，不写入 Markdown、同步或导出的公众号 HTML。实现位于 `frontend/scroll-sync.mjs`，集成与缓存版本由构建器维护。
+
 ## 兼容范围
 
 - 支持 Markdown 标题、段落、行内代码、代码块、列表、普通引用、链接、图片和表格；提示型引用可使用 `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION` 标记。
@@ -96,7 +106,7 @@ Apple 尺寸参考 [Apple 布局规范](https://developer.apple.com/cn/design/hu
 
 维护接口共六个字段：`font_family`（`theme/sans/serif`）、`font_size`（整数 `15/16/17/18`）、`caption_font_size`（整数 `12/13/14/15/16`）、`table_font_size`（整数 `12/13/14/15/16`）、`code_wrap`（`scroll/wrap`）、`table_mode`（`auto/scroll/cards`）。新增两项对新六主题默认 `12/13`，对旧三版式默认 `13/16`。缺省元数据对新主题使用 17px 正文、代码横滑及表格自动适配；编辑器切换版式时可应用上表中的推荐组合。
 
-本版资源入口为 `index-20261017-proof.js`，排版模块为 `typography-20261017-proof.mjs`，控件资源为 `typography-controls-20261017-proof.mjs` 与 `typography-controls-20261017-proof.css`，对应版本 `2026.10.17-proof.7`。
+本版资源入口为 `index-20261017-scroll.js`，排版模块为 `typography-20261017-scroll.mjs`，控件资源为 `typography-controls-20261017-scroll.mjs` 与 `typography-controls-20261017-scroll.css`，对应版本 `2026.10.17-scroll.8`。
 
 ## AI 与 GPU 代码高亮
 

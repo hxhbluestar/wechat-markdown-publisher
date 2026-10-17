@@ -1,0 +1,15 @@
+.proofreading-dialog{width:min(780px,94vw);max-height:88vh;padding:0;border:1px solid #d7e0e9;border-radius:12px;background:#fff;color:#263342;box-shadow:0 20px 80px #172a4540}
+.proofreading-dialog::backdrop{background:#13223866}
+.proofreading-dialog header{display:flex;justify-content:space-between;gap:20px;padding:20px 22px 14px;border-bottom:1px solid #e4eaf0}
+.proofreading-dialog header strong{font-size:18px}.proofreading-dialog header p{margin:8px 0 0;color:#657284;font-size:12px;line-height:1.7}
+.proofreading-dialog button{font:inherit;font-size:12px;border:1px solid #d7e0e9;border-radius:6px;padding:7px 12px;background:#f8fafc;color:#263342;cursor:pointer}.proofreading-dialog button:disabled{opacity:.5;cursor:default}
+.proofreading-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 22px;font-size:13px}.proofreading-summary span{flex:1;min-width:180px}
+.proofreading-list{max-height:46vh;overflow:auto;padding:0 22px}.proofreading-issue{border:1px solid #dfe6ed;border-radius:8px;padding:13px 15px;margin:0 0 12px;background:#fcfdff}
+.proofreading-issue label{display:flex;gap:9px;align-items:center;font-size:14px}.proofreading-issue label small{font-size:11px;color:#806027;background:#fff5d8;padding:2px 6px;border-radius:4px}
+.proofreading-issue p{font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:9px 0}.proofreading-issue mark{background:#ffe2ad;color:#7c2d12;border-radius:2px;padding:1px 2px}
+.proofreading-issue .proofreading-reason{color:#657284;font-size:12px;margin:5px 0}.proofreading-row-actions{display:flex;justify-content:flex-end;gap:7px}
+.proofreading-message{margin:0;padding:10px 22px;color:#24623d;min-height:40px;font-size:13px;line-height:1.7}.proofreading-message.is-error{color:#b42335}
+.proofreading-dialog footer{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;padding:15px 22px;border-top:1px solid #e4eaf0}.proofreading-dialog #saveProofreading{background:#0051c6;color:white;border-color:#0051c6}
+.toolbar-button.has-proofreading-issues{color:#b42335;border-color:#ebabb1;background:#fff3f4}
+.cm-content .wx-proofreading-error{text-decoration:underline wavy #dc3545;text-underline-offset:3px;background:#ffb3b826}.cm-content .wx-proofreading-review{text-decoration:underline wavy #bb7c0c;text-underline-offset:3px;background:#ffd98826}
+@media(max-width:600px){.proofreading-dialog header,.proofreading-dialog footer{padding:14px}.proofreading-summary{padding:12px 14px}.proofreading-list{padding:0 14px}.proofreading-row-actions{justify-content:flex-start}.proofreading-dialog footer button{flex:1}}

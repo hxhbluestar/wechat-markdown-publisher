@@ -22,6 +22,13 @@ changes = [
      'for(const i of n){const target=imageUploadTarget(i.name,TE(zo()));const s=await WS(i,target.path);if(target.insert)r.push(`![${i.name.replace(/\\.[^.]+$/,"")}](${s})`)}await yp(),Vo(),r.length&&US(r.join(`\n\n`))'),
 ]
 changes += [
+    ('            <div class="preview-options">', '${scrollSyncMarkup()}\n            <div class="preview-options">'),
+    ('function iM(t){H.editor?.destroy()', 'function iM(t){scrollSync.detachEditor();H.editor?.destroy()'),
+    ('We.updateListener.of(e=>{e.docChanged&&(ds(!0),HS())})]})})}',
+     'We.updateListener.of(e=>{e.docChanged&&(scrollSync.invalidate(),ds(!0),HS())})]})});scrollSync.attachEditor(H.editor)}'),
+    ('function sM(){H.editor?.destroy()', 'function sM(){scrollSync.detachEditor();H.editor?.destroy()'),
+    ('le.wordCount.textContent=`${s.toLocaleString("zh-CN")} 字`,jl(),vo()}',
+     'le.wordCount.textContent=`${s.toLocaleString("zh-CN")} 字`,jl(),vo(),scrollSync.refresh(H.current.id,t)}'),
     ('          <button class="sync-button" id="syncDraft"', '${proofreadingMarkup()}\n          <button class="sync-button" id="syncDraft"'),
     ('extensions:[Tw(),nc.of(', 'extensions:[createProofreadingExtension({ViewPlugin:rs,Decoration:Bt},proofreading),Tw(),nc.of('),
     ('async function lM(){if(!H.accounts.length){vp();return}if(H.current){',
@@ -61,24 +68,29 @@ changes += [
     ('H.current.metadata.cover=await WS(n,`cover${r}`),$S(H.current.metadata)',
      'H.current.metadata.cover=await WS(n,`cover${r}`),H.current.metadata={...H.current.metadata,...kc()},$S(H.current.metadata)'),
 ]
+changes += [
+    ('const typographyControls=connectTypographyControls(document,()=>{ds(!0);Vo()});function kc()',
+     'const typographyControls=connectTypographyControls(document,()=>{ds(!0);Vo()});const scrollLexer=new AS();const scrollSync=connectScrollSync(document,{lexMarkdown:text=>{const {markdownContent:content}=kd.parseFrontMatterAndContent(text);return {content,tokens:scrollLexer.lexer(content)}}});function kc()'),
+]
 for before, after in changes:
     count = source.count(before)
     if count != 1:
         raise RuntimeError(f'Expected exactly one frontend match, found {count}: {before[:100]}')
     source = source.replace(before, after, 1)
 source = 'import { canonicalAssetPath, imageUploadTarget, missingImagePaths } from "./asset-paths-20261014.mjs";\n' + source
-source = ('import { prepareTypography, typographyAccent, escapeHtmlAttribute } from "./typography-20261017-proof.mjs";\n'
-          'import { proofreadingMarkup, connectProofreading, createProofreadingExtension } from "./proofreading-20261017-proof.mjs";\n'
-          'import { connectTypographyControls, typographyControlsMarkup, themeOptionsMarkup } from "./typography-controls-20261017-proof.mjs";\n'
+source = ('import { prepareTypography, typographyAccent, escapeHtmlAttribute } from "./typography-20261017-scroll.mjs";\n'
+          'import { proofreadingMarkup, connectProofreading, createProofreadingExtension } from "./proofreading-20261017-scroll.mjs";\n'
+          'import { scrollSyncMarkup, connectScrollSync } from "./scroll-sync-20261017-scroll.mjs";\n'
+          'import { connectTypographyControls, typographyControlsMarkup, themeOptionsMarkup } from "./typography-controls-20261017-scroll.mjs";\n'
           'import { connectRocmImport, rocmImportMarkup } from "./rocm-import-20261017.mjs";\n' + source)
 source += '\nexport { eM as previewWechatArticle, tM as exportWechatArticle };\n'
-(assets / 'index-20261017-proof.js').write_text(source, encoding='utf-8', newline='')
+(assets / 'index-20261017-scroll.js').write_text(source, encoding='utf-8', newline='')
 page = (root / 'frontend' / 'index.template.html').read_text('utf-8')
 entry = 'src="/editor/assets/index-CIPbZpsp.js"'
 if page.count(entry) != 1:
     raise RuntimeError('Unexpected editor entry point')
 (root / 'app' / 'web' / 'editor' / 'index.html').write_text(
-    page.replace(entry, 'src="/editor/assets/index-20261017-proof.js"'), encoding='utf-8', newline=''
+    page.replace(entry, 'src="/editor/assets/index-20261017-scroll.js"'), encoding='utf-8', newline=''
 )
 shutil.copyfile(root / 'frontend' / 'asset-paths.mjs', assets / 'asset-paths-20261014.mjs')
 for extension in ('mjs', 'css'):
@@ -86,22 +98,23 @@ for extension in ('mjs', 'css'):
 typography = (root / 'frontend/typography.mjs').read_text('utf-8')
 if typography.count("'./article-spacing.mjs'") != 1:
     raise RuntimeError('Unexpected article spacing import')
-(assets / 'typography-20261017-proof.mjs').write_text(typography.replace("'./article-spacing.mjs'", "'./article-spacing-20261017-proof.mjs'"), encoding='utf-8', newline='')
-shutil.copyfile(root / 'frontend/article-spacing.mjs', assets / 'article-spacing-20261017-proof.mjs')
-shutil.copyfile(root / 'frontend/proofreading.css', assets / 'proofreading-20261017-proof.css')
+(assets / 'typography-20261017-scroll.mjs').write_text(typography.replace("'./article-spacing.mjs'", "'./article-spacing-20261017-scroll.mjs'"), encoding='utf-8', newline='')
+shutil.copyfile(root / 'frontend/article-spacing.mjs', assets / 'article-spacing-20261017-scroll.mjs')
+shutil.copyfile(root / 'frontend/scroll-sync.mjs', assets / 'scroll-sync-20261017-scroll.mjs')
+shutil.copyfile(root / 'frontend/proofreading.css', assets / 'proofreading-20261017-scroll.css')
 for module, dependency in [('proofreading','proofreading-core'), ('proofreading-core','proofreading-dictionary')]:
     content = (root / 'frontend' / f'{module}.mjs').read_text('utf-8')
     expected = f"'./{dependency}.mjs'"
     if content.count(expected) != 1:
         raise RuntimeError(f'Unexpected dependency in {module}')
-    (assets / f'{module}-20261017-proof.mjs').write_text(content.replace(expected, f"'./{dependency}-20261017-proof.mjs'"), encoding='utf-8', newline='')
-shutil.copyfile(root / 'frontend/proofreading-dictionary.mjs', assets / 'proofreading-dictionary-20261017-proof.mjs')
-shutil.copyfile(root / 'frontend/typography-controls.css', assets / 'typography-controls-20261017-proof.css')
+    (assets / f'{module}-20261017-scroll.mjs').write_text(content.replace(expected, f"'./{dependency}-20261017-scroll.mjs'"), encoding='utf-8', newline='')
+shutil.copyfile(root / 'frontend/proofreading-dictionary.mjs', assets / 'proofreading-dictionary-20261017-scroll.mjs')
+shutil.copyfile(root / 'frontend/typography-controls.css', assets / 'typography-controls-20261017-scroll.css')
 shutil.copyfile(root / 'frontend/rocm-import.mjs', assets / 'rocm-import-20261017.mjs')
 controls = (root / 'frontend/typography-controls.mjs').read_text('utf-8')
 if controls.count("'./typography.mjs'") != 1:
     raise RuntimeError('Unexpected typography controls import')
-(assets / 'typography-controls-20261017-proof.mjs').write_text(
-    controls.replace("'./typography.mjs'", "'./typography-20261017-proof.mjs'"), encoding='utf-8', newline='')
+(assets / 'typography-controls-20261017-scroll.mjs').write_text(
+    controls.replace("'./typography.mjs'", "'./typography-20261017-scroll.mjs'"), encoding='utf-8', newline='')
 shutil.copyfile(root / 'frontend/code-languages.js', root / 'app/web/vendor/highlight-ai-20261017.js')
 print(f'Frontend patch built with {len(changes)} unique replacements')
