@@ -155,7 +155,9 @@ class TypographyDeploymentTests(unittest.TestCase):
         self.assertTrue(SCRIPT.is_file(), "The typography deployment script is missing")
         self.temp_dir = tempfile.TemporaryDirectory(prefix="publisher-deploy-test-")
         self.addCleanup(self.temp_dir.cleanup)
-        self.root = Path(self.temp_dir.name)
+        # GitHub Windows runners can expose TEMP through an 8.3 profile alias.
+        # Compare the same canonical paths returned by the deployment resolver.
+        self.root = Path(self.temp_dir.name).resolve()
         self.source = self.root / "source"
         (self.source / "tools").mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.source / "tools" / SCRIPT.name)
