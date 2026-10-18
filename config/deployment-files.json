@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "2026.10.18-layout.1",
+  "release": "2026.10.18-cache.1",
   "files": [
     "app/web/server.py",
     "app/web/rocm_import.py",

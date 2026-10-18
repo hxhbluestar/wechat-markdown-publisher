@@ -62,6 +62,25 @@ class WorkflowAPI(unittest.TestCase):
         self.assertNotEqual(result['draft']['id'],d['id'])
         self.assertEqual(result['draft']['content'],'# Original')
 
+    def test_frontend_get_and_head_ignore_stale_validators_and_disable_heuristic_cache(self):
+        for path in ['/editor/','/editor/assets/index-20261018-workflow.js','/editor/assets/editor-layout-20261018.css','/md-content.css','/vendor/highlight-ai-20261017.js']:
+            for method in ['GET','HEAD']:
+                for validators in [
+                    {'If-Modified-Since':'Wed, 01 Jan 2099 00:00:00 GMT'},
+                    {'If-None-Match':'"old-editor"'},
+                    {'If-Modified-Since':'Wed, 01 Jan 2099 00:00:00 GMT','If-None-Match':'"old-editor"'},
+                ]:
+                    with self.subTest(path=path,method=method,validators=list(validators)):
+                        req=urllib.request.Request(self.url+path,method=method,headers=validators)
+                        try:
+                            with urllib.request.urlopen(req,timeout=5) as response:
+                                self.assertEqual(response.status,200)
+                                self.assertEqual(response.headers.get('Cache-Control'),'no-store')
+                                body=response.read()
+                                self.assertEqual(bool(body),method=='GET')
+                        except urllib.error.HTTPError as error:
+                            self.fail('Mutable frontend returned a cached response: '+str(error.code))
+
     def test_soft_delete_and_restore_trash(self):
         _,d=self.request('/api/editor/drafts',{'content':'# Recycle'})
         self.assertEqual(self.request('/api/editor/drafts/'+d['id'],method='DELETE')[0],200)

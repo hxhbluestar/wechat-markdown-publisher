@@ -1120,7 +1120,24 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(WEB_DIR), **kwargs)
 
+    def send_head(self):
+        # Mutable application files must never inherit the browser's heuristic
+        # freshness or a stale If-Modified-Since validator. Archived media uses
+        # its independent send_file_safe cache/range behavior.
+        path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path).lower()
+        self._fresh_frontend = path in {'/', '/editor', '/editor/'} or path.endswith(('.html', '.css', '.js', '.mjs'))
+        if self._fresh_frontend:
+            for header in ('If-Modified-Since', 'If-None-Match'):
+                if header in self.headers:
+                    del self.headers[header]
+        try:
+            return super().send_head()
+        finally:
+            self._fresh_frontend = False
+
     def end_headers(self) -> None:
+        if getattr(self, '_fresh_frontend', False):
+            self.send_header('Cache-Control', 'no-store')
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")

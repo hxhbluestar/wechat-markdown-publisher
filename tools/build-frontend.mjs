@@ -2,6 +2,7 @@ import {build} from 'esbuild';
 import {readFile,writeFile,copyFile,mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const assets=path.join(root,'app/web/editor/assets');
@@ -42,6 +43,20 @@ await copy('frontend/code-languages.js','app/web/vendor/highlight-ai-20261017.js
 await mkdir(path.join(root,'app/web/vendor/mathjax-3.2.2'),{recursive:true});
 await copy('node_modules/mathjax/es5/tex-svg.js','app/web/vendor/mathjax-3.2.2/tex-svg.js');
 await copy('node_modules/mathjax/LICENSE','app/web/vendor/mathjax-3.2.2/LICENSE');
-const page=await readFile(path.join(root,'frontend/index.template.html'),'utf8');
-await writeFile(path.join(root,'app/web/editor/index.html'),page.replace('src="/editor/assets/index-CIPbZpsp.js"','src="/editor/assets/index-20261018-workflow.js"').replace('"/editor/assets/index-20261017-scroll.js"','"/editor/assets/index-20261018-workflow.js"'));
+let page=await readFile(path.join(root,'frontend/index.template.html'),'utf8');
+page=page.replace('src="/editor/assets/index-CIPbZpsp.js"','src="/editor/assets/index-20261018-workflow.js"').replace('"/editor/assets/index-20261017-scroll.js"','"/editor/assets/index-20261018-workflow.js"');
+// A page query parameter does not change the identity of its subresources.
+// Stable content digests invalidate old browser entries without timestamps or
+// deleting the user's browser data. Replace the import-map target as well, so
+// renderer chunks reuse the exact same application module instance.
+const resources=new Set([...page.matchAll(/(?:src|href)="(\/[^"?]+\.(?:css|mjs|js))"/g)].map(match=>match[1]));
+for(const resource of resources){
+  const bytes=await readFile(path.join(root,'app/web',resource.slice(1)));
+  const digest=createHash('sha256').update(bytes).digest('hex').slice(0,16);
+  page=page.replaceAll('"'+resource+'"','"'+resource+'?v='+digest+'"');
+}
+const release=JSON.parse(await readFile(path.join(root,'packaging/version.json'),'utf8')).version;
+if(!/^[a-z0-9.-]+$/i.test(release))throw new Error('Invalid frontend release version');
+page=page.replace('<head>','<head>\n  <meta name="publisher-build" content="'+release+'">');
+await writeFile(path.join(root,'app/web/editor/index.html'),page);
 console.log('Frontend built from readable application sources and pinned renderer runtime.');
