@@ -21,8 +21,8 @@ const hash = (value) =>
 const mediaId = (value) =>
   typeof value === "string" && /^[A-Za-z0-9_-]{1,256}$/.test(value);
 
-export function syncProgressMarkup() {
-  return `<button type="button" class="toolbar-button" id="openSyncJobs">同步任务</button>
+export function syncProgressMarkup({entry = true} = {}) {
+  return `${entry ? '<button type="button" class="toolbar-button" id="openSyncJobs">同步任务</button>' : ''}
   <dialog class="sync-jobs-dialog" id="syncJobsDialog" aria-labelledby="syncJobsTitle">
     <header><div><small>本机同步记录</small><h2 id="syncJobsTitle">同步任务与远端核对</h2></div><button type="button" id="closeSyncJobs" aria-label="关闭同步任务">×</button></header>
     <div class="sync-jobs-toolbar"><button type="button" data-sync-action="refresh">刷新任务列表</button><span>后台结果以任务记录为准</span></div>

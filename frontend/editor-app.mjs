@@ -1,4 +1,5 @@
 import { createDraftSaver } from "./draft-save.mjs";
+import { syncDialogMarkup, connectEditorLayout } from "./editor-layout.mjs";
 import {
   createRecoveryController,
   createIndexedDBRecoveryStore,
@@ -150,12 +151,11 @@ ${rocmImportMarkup()}
           <div><small id="saveState">尚未选择稿件</small><small id="recoveryState" aria-live="polite"></small><strong id="currentTitle">创作区</strong></div>
         </div>
         <div class="toolbar-actions">
-${workflowMarkup()}
-${syncProgressMarkup()}
+${workflowMarkup({preflightEntry: false})}
+${syncProgressMarkup({entry: false})}
           <button class="toolbar-button" id="saveDraft" type="button" disabled>保存</button>
 ${proofreadingMarkup()}
-          <button class="sync-button" id="syncDraft" type="button" disabled>同步到草稿箱</button>
-          <button class="publish-button" id="publishDraft" type="button" disabled>确认发布</button>
+          <button class="sync-button" id="openSyncDialog" type="button" disabled>同步到公众号</button>
         </div>
       </header>
       <div class="service-warning" id="serviceWarning" hidden>
@@ -169,6 +169,7 @@ ${proofreadingMarkup()}
         <button class="primary-action" type="button" data-open-import>选择 Markdown</button>
       </section>
 
+      <nav class="workspace-view-switch" aria-label="工作区视图"><button type="button" data-workspace-view="source" aria-pressed="true">编辑</button><button type="button" data-workspace-view="preview" aria-pressed="false">预览</button></nav>
       <section class="compose-grid" id="composeGrid" hidden>
         <div class="source-panel">
           <div class="source-tabs" role="tablist" aria-label="编辑工作区">
@@ -229,30 +230,18 @@ ${scrollSyncMarkup()}
               <label><i class="palette-swatch" id="paletteSwatch"></i>配色<select id="paletteSelect"><option value="warm">默认配色</option><option value="wechat">公众号绿</option><option value="blue">AMD 官网蓝</option><option value="red">典雅红</option><option value="violet">紫罗兰</option><option value="ink">墨金</option></select></label>
             </div>
           </div>
-${typographyControlsMarkup()}
+          <div class="preview-drawers">
+            <details class="preview-settings"><summary>排版与设备</summary>${typographyControlsMarkup()}</details>
 ${authoringToolsMarkup()}
+          </div>
           <div class="phone-stage">
             <article class="wechat-preview" id="previewArticle"><div id="output"></div></article>
           </div>
         </div>
 
-        <aside class="publish-panel">
-          <div class="panel-heading"><span>发布检查</span></div>
-          <section class="account-status" id="accountStatus">
-            <div class="account-status-heading"><span class="status-dot" id="accountDot"></span><div><strong>目标公众号</strong><small id="accountSummary">尚未绑定</small></div></div>
-            <select id="accountSelect" aria-label="选择目标公众号"><option value="">请选择公众号</option></select>
-            <button class="manage-account-button" id="manageAccounts" type="button">管理公众号</button>
-          </section>
-          <div class="check-list" id="preflightList"></div>
-          <div class="sync-blocker" id="syncBlocker" hidden></div>
-          <div class="publish-state" id="publishState"></div>
-          <div class="publish-help">
-            <strong>推荐流程</strong>
-            <p>先同步到公众号草稿箱，在公众号后台或手机端复核；确认无误后再发布。</p>
-          </div>
-        </aside>
       </section>
     </main>
+${syncDialogMarkup()}
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <dialog class="account-dialog" id="accountDialog">
       <div class="dialog-heading"><div><strong>绑定微信公众号</strong><small>绑定后，文章可以直接同步到所选公众号的草稿箱。</small></div><button id="closeAccountDialog" type="button" aria-label="关闭">×</button></div>
@@ -380,6 +369,11 @@ const query = (t) => document.querySelector(t),
     fansInput: query("#metaFansComment"),
     showCoverInput: query("#metaShowCover"),
   };
+const editorLayout = connectEditorLayout(document, {
+  hasDraft: () => !!state.current,
+  getTitle: () => state.current ? readMetadata().title : '',
+  onOpenSync: () => renderPreflight(),
+});
 async function request(t, e = {}) {
   const n = new Headers(e.headers);
   (e.body && n.set("Content-Type", "application/json"),
@@ -750,6 +744,7 @@ function formatBytes(t) {
       : `${(t / (1024 * 1024)).toFixed(1)} MB`;
 }
 function showSourcePane(t) {
+  editorLayout.showSource();
   ((state.sourceMode = t),
     document.querySelectorAll("[data-source-mode]").forEach((e) => {
       const n = e.dataset.sourceMode === t;
@@ -911,6 +906,17 @@ async function restoreLocal(record) {
   );
 }
 function selectWorkflowIssue(issue) {
+  query("#workflowDialog").close();
+  if (issue.field === "account") {
+    editorLayout.openSync();
+    ui.accountSelect.focus();
+    return;
+  }
+  if (issue.field === "cover") {
+    showSourcePane("assets");
+    query("#uploadCover").focus();
+    return;
+  }
   if (issue.field === "content" && Number.isInteger(issue.from)) {
     showSourcePane("content");
     state.editor?.dispatch({
@@ -919,17 +925,15 @@ function selectWorkflowIssue(issue) {
     });
     state.editor?.focus();
   } else if (
-    ["title", "digest", "source_url", "cover", "account"].includes(issue.field)
+    ["title", "digest", "source_url"].includes(issue.field)
   ) {
     showSourcePane("settings");
     ({
       title: ui.titleInput,
       digest: ui.digestInput,
       source_url: ui.sourceInput,
-      account: ui.accountSelect,
     })[issue.field]?.focus();
   } else if (issue.field === "assets") showSourcePane("assets");
-  query("#workflowDialog").close();
 }
 async function downloadPackage(id) {
   if (state.current?.id === id && state.dirty && !(await saveDraft()))
@@ -1104,6 +1108,7 @@ async function captureVisibleVersion(reason = "manual-snapshot") {
     throw new Error("保存快照期间内容已变化，请重新预览后应用");
 }
 function renderPreflight() {
+  editorLayout.refresh();
   if (!state.current) return;
   const t = readMetadata(),
     e = getContent(),
@@ -1241,6 +1246,7 @@ function closeDraft() {
     (ui.images.disabled = !0),
     (ui.sync.disabled = !0),
     (ui.publish.disabled = !0));
+  editorLayout.refresh();
 }
 function showDeleteDraft(t) {
   const e = state.drafts.find((n) => n.id === t);

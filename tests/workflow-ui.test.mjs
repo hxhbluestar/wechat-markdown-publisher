@@ -6,6 +6,13 @@ import {createPreflightAcknowledgements} from '../frontend/preflight-ack.mjs';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 
+test('account and cover blockers offer direct navigation to their editable controls',async()=>{
+ const h=harness(),selected=[];h.a.selectIssue=issue=>selected.push(issue.field);
+ const w=connectWorkflowUI(h.document,h.a);await w.showReport({fingerprint:'a',issues:[{id:'account',field:'account',severity:'blocker',message:'Choose account'},{id:'cover',field:'cover',severity:'blocker',message:'Choose cover'}]});
+ const actions=[...h.document.querySelectorAll('#workflowBody button')];assert.equal(actions.length,2);
+ actions.forEach(h.click);await tick();assert.deepEqual(selected,['account','cover']);w.destroy();
+});
+
 function harness(){
  const {document}=parseHTML('<html><body>'+workflowMarkup()+'</body></html>');
  for(const d of document.querySelectorAll('dialog')){d.showModal=()=>d.setAttribute('open','');d.close=()=>d.removeAttribute('open');}

@@ -15,8 +15,8 @@ const PANES = [
   ["preflight", "发布检查"],
   ["technical", "技术写作"],
 ];
-export function workflowMarkup() {
-  return `<button type="button" class="toolbar-button" id="openWorkflow">创作工具<span id="recoveryCount"></span></button><button type="button" class="toolbar-button" id="openPreflight">发布检查</button>
+export function workflowMarkup({preflightEntry = true} = {}) {
+  return `<button type="button" class="toolbar-button" id="openWorkflow">创作工具<span id="recoveryCount"></span></button>${preflightEntry ? '<button type="button" class="toolbar-button" id="openPreflight">发布检查</button>' : ''}
 <dialog id="workflowDialog" class="workflow-dialog"><header><div><small>本机创作工作台</small><h2 id="workflowTitle">创作工具</h2></div><button type="button" id="closeWorkflow" aria-label="关闭创作工具">×</button></header><nav>${PANES.map(([id, label]) => `<button type="button" data-workflow-pane="${id}">${label}</button>`).join("")}</nav><div id="workflowBody" class="workflow-body"></div><footer><span id="workflowMessage" role="status"></span><button type="button" id="workflowAccept" hidden disabled>确认并继续同步</button></footer></dialog>
 <dialog id="conflictDialog" class="workflow-dialog"><header><h2>保存冲突 · 当前输入已保留</h2><button type="button" id="closeConflict">关闭</button></header><p>另一个窗口更新了稿件。比较后可另存副本，原稿不会被覆盖。</p><div class="workflow-compare"><section><h3>当前输入</h3><pre id="conflictLocal"></pre></section><section><h3>后端已保存版本</h3><pre id="conflictRemote"></pre></section></div><footer><button type="button" id="saveConflictCopy">另存为新副本</button></footer></dialog>`;
 }
@@ -577,7 +577,7 @@ export function connectWorkflowUI(doc, a) {
       }
       if (
         Number.isInteger(issue.from) ||
-        ["title", "digest", "source_url", "assets"].includes(issue.field)
+        ["title", "digest", "source_url", "assets", "account", "cover"].includes(issue.field)
       )
         row.append(button("定位", () => a.selectIssue?.(issue)));
       body.append(row);

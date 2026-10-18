@@ -1,0 +1,513 @@
+/* The editing grid has exactly two children. Publishing lives in the top layer. */
+.editor-shell {
+  grid-template-columns: 224px minmax(0, 1fr);
+}
+.editor-toolbar {
+  gap: 20px;
+  padding: 12px 20px;
+  flex: 0 0 auto;
+}
+.toolbar-title {
+  flex: 1;
+}
+.toolbar-title strong {
+  max-width: min(45vw, 720px);
+  font-size: 14px;
+}
+.toolbar-actions {
+  flex: 0 0 auto;
+  align-items: center;
+}
+.editor-toolbar .toolbar-actions {
+  flex-wrap: nowrap;
+}
+.toolbar-button,
+.sync-button,
+.publish-button {
+  font-size: 13px;
+}
+.draft-sidebar {
+  padding: 20px 14px 14px;
+}
+.sidebar-actions .primary-action,
+.sidebar-actions .quiet-action {
+  min-height: 36px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.wechat-config-entry,
+.archive-entry {
+  min-height: 56px;
+  margin-top: 12px;
+}
+.compose-grid {
+  grid-template-columns: minmax(0, var(--authoring-source-column, 1fr)) minmax(
+      0,
+      var(--authoring-preview-column, 1fr)
+    );
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.compose-grid > .source-panel,
+.compose-grid > .preview-panel {
+  min-height: 0;
+  height: 100%;
+}
+.preview-panel {
+  position: relative;
+  overflow: hidden;
+  background: #eceef1;
+}
+.preview-toolbar {
+  min-height: 45px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  gap: 10px;
+}
+.preview-options {
+  gap: 12px;
+}
+.preview-toolbar .preview-options select {
+  max-width: 150px;
+}
+.preview-toolbar label,
+.preview-tabs button {
+  font-size: 12px;
+}
+.preview-settings,
+.preview-drawers .authoring-tools {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+}
+.preview-drawers {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  gap: 14px;
+  z-index: 5;
+  border-bottom: 1px solid var(--line);
+  background: #fafaf9;
+}
+.preview-drawers summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 4px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+.preview-drawers summary::-webkit-details-marker {
+  display: none;
+}
+.preview-drawers summary::after {
+  content: "⌄";
+  margin-left: auto;
+  font-size: 15px;
+}
+.preview-drawers details[open] > summary {
+  color: var(--accent);
+}
+.preview-drawers details[open] > summary::after {
+  transform: rotate(180deg);
+}
+.preview-drawers .typography-options,
+.preview-drawers .authoring-tools-body {
+  position: absolute;
+  inset: 100% 0 auto;
+  max-height: var(--preview-tools-max-height, min(65vh, 560px));
+  overflow: auto;
+  padding: 18px;
+  background: #fffefa;
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 30px #18233422;
+}
+.preview-settings {
+  border-right: 1px solid var(--line);
+}
+.preview-drawers .authoring-tools-body {
+  color: var(--ink);
+}
+.preview-drawers :focus-visible,
+.workspace-view-switch button:focus-visible,
+.sync-dialog :focus-visible {
+  outline: 2px solid #005a9c;
+  outline-offset: 3px;
+}
+.phone-stage {
+  padding: 24px 20px 60px;
+  overscroll-behavior: contain;
+}
+.workspace-view-switch {
+  display: none;
+}
+/* Legacy article themes contain global heading rules. Keep editor dialogs legible. */
+.editor-shell dialog h2,
+.editor-shell dialog h3 {
+  display: block;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  text-shadow: none;
+}
+.editor-shell dialog h2::before,
+.editor-shell dialog h2::after {
+  content: none;
+}
+.sync-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fffefa;
+  color: var(--ink);
+  box-shadow: 0 24px 100px #12203455;
+}
+.sync-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.sync-dialog::backdrop {
+  background: #121e3099;
+  backdrop-filter: blur(3px);
+}
+.sync-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex: 0 0 auto;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.sync-dialog-heading > div {
+  min-width: 0;
+}
+.sync-dialog-heading small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.sync-dialog h2 {
+  display: block;
+  margin: 5px 0 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink);
+  background: none;
+  font-size: 20px;
+  font-weight: 650;
+  text-shadow: none;
+}
+.sync-dialog h2::before,
+.sync-dialog h2::after {
+  content: none;
+}
+.sync-dialog-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+#closeSyncDialog {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+}
+.sync-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 24px;
+  overscroll-behavior: contain;
+}
+.sync-dialog-hint {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.sync-dialog .account-status {
+  margin: 0 0 18px;
+  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  background: transparent;
+}
+.sync-dialog .account-status-heading {
+  grid-column: 1 / -1;
+}
+.sync-dialog .account-status select {
+  min-height: 36px;
+  font-size: 13px;
+}
+.sync-dialog .manage-account-button {
+  padding-inline: 14px;
+  font-size: 12px;
+}
+.sync-review-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.sync-review-heading h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sync-dialog .toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 10px;
+}
+.sync-dialog .check-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 0 16px;
+}
+.sync-dialog .check-item {
+  font-size: 12px;
+}
+.sync-dialog .sync-blocker,
+.sync-dialog .publish-state {
+  margin: 0;
+  font-size: 12px;
+}
+.sync-dialog .publish-state {
+  padding: 12px 0;
+}
+.sync-dialog .publish-state:empty::after {
+  content: "当前文章尚无同步记录";
+}
+.sync-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.sync-dialog-footer .sync-button {
+  min-height: 38px;
+}
+.sync-dialog .sync-advanced {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sync-advanced summary {
+  cursor: pointer;
+}
+.sync-advanced p {
+  line-height: 1.7;
+}
+.network-status-slot #company-network-strip {
+  margin-top: 14px;
+  border: 1px solid #ded9cf;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+@media (max-width: 1180px) and (min-width: 901px) {
+  .editor-shell {
+    grid-template-columns: 196px minmax(0, 1fr);
+  }
+  .editor-toolbar {
+    padding: 10px 12px;
+    gap: 12px;
+  }
+  .toolbar-actions {
+    gap: 5px;
+  }
+  .editor-toolbar button {
+    padding-inline: 10px;
+  }
+  .preview-toolbar {
+    flex-wrap: wrap;
+  }
+  .preview-options {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+@media (max-width: 900px) {
+  .editor-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .draft-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 15;
+    width: 270px;
+    transform: translateX(-100%);
+  }
+  body.show-drafts .draft-sidebar {
+    transform: translateX(0);
+  }
+  .mobile-drafts {
+    display: block;
+  }
+  .editor-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .toolbar-title {
+    min-width: 120px;
+  }
+  .toolbar-title strong {
+    max-width: 42vw;
+  }
+  .editor-toolbar .toolbar-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toolbar-actions {
+    gap: 5px;
+  }
+  .toolbar-actions > button {
+    min-height: 34px;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+  .workspace-view-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    background: #fafaf9;
+    border-bottom: 1px solid var(--line);
+  }
+  .workspace-view-switch button {
+    min-height: 32px;
+    padding: 4px 18px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    background: transparent;
+    font-size: 12px;
+  }
+  .workspace-view-switch button[aria-pressed="true"] {
+    color: var(--ink);
+    border-color: var(--line);
+    background: #fff;
+  }
+  .compose-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .authoring-focus-mode .compose-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Retain both geometries so bidirectional scroll mapping also works on compact screens. */
+  .compose-grid[data-workspace-view="source"] > .preview-panel,
+  .compose-grid[data-workspace-view="preview"] > .source-panel {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .compose-grid > .source-panel,
+  .compose-grid > .preview-panel {
+    grid-area: 1 / 1;
+    min-height: 0;
+    border: 0;
+  }
+}
+@media (max-width: 540px) {
+  .toolbar-title {
+    flex-basis: 100%;
+  }
+  .toolbar-title strong {
+    max-width: calc(100vw - 80px);
+  }
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .toolbar-actions > #openWorkflow {
+    margin-right: auto;
+  }
+  .preview-toolbar {
+    padding-inline: 8px;
+  }
+  .preview-options {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .preview-toolbar .preview-options select {
+    max-width: 118px;
+  }
+  .preview-drawers {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .preview-drawers .typography-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+  .device-preview-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .device-preview-controls label:first-child {
+    grid-column: 1 / -1;
+  }
+  .sync-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .sync-dialog-heading,
+  .sync-dialog-body,
+  .sync-dialog-footer {
+    padding: 16px;
+  }
+  .sync-dialog .check-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sync-dialog h2 {
+    font-size: 18px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .preview-drawers,
+  .workspace-view-switch {
+    background: #302d28;
+  }
+  .preview-drawers .typography-options,
+  .preview-drawers .authoring-tools-body,
+  .sync-dialog {
+    color: var(--ink);
+    background: #292722;
+  }
+  .workspace-view-switch button[aria-pressed="true"] {
+    background: #3d3933;
+  }
+  .sync-dialog .toolbar-button {
+    color: var(--ink);
+    background: #25231f;
+  }
+}

@@ -52,6 +52,7 @@ FILES = (
     "app/web/editor/assets/authoring-tools-20261018.css",
     "app/web/editor/assets/asset-tools-20261018.css",
     "app/web/editor/assets/sync-progress-20261018.css",
+    "app/web/editor/assets/editor-layout-20261018.css",
     "app/web/vendor/mathjax-3.2.2/tex-svg.js",
     "app/web/vendor/mathjax-3.2.2/LICENSE",
 )

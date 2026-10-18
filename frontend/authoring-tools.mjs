@@ -36,7 +36,7 @@ const sizes = (kind) =>
 
 export function authoringToolsMarkup() {
   return `<details class="authoring-tools" data-authoring-tools>
-    <summary>写作工具 · 大纲与局部排版</summary>
+    <summary>大纲与局部微调</summary>
     <div class="authoring-tools-body">
       <div class="authoring-view-controls">
         <button type="button" data-authoring-action="fold" aria-pressed="false">折叠代码</button>

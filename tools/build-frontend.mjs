@@ -27,6 +27,7 @@ for(const [src,dest] of [
   ['frontend/authoring-tools.css','authoring-tools-20261018.css'],
   ['frontend/asset-tools.css','asset-tools-20261018.css'],
   ['frontend/sync-progress.css','sync-progress-20261018.css'],
+  ['frontend/editor-layout.css','editor-layout-20261018.css'],
   ['frontend/proofreading-dictionary.mjs','proofreading-dictionary-20261017-scroll.mjs'],
   ['frontend/typography-controls.css','typography-controls-20261017-scroll.css'],
   ['frontend/rocm-import.mjs','rocm-import-20261017.mjs'],
