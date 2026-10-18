@@ -23,7 +23,7 @@ tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().
 prefixes = ('app/', 'frontend/', 'tests/', 'config/', 'packaging/', 'scripts/')
 standalone_files = {
     'tools/build_frontend.py', 'tools/build-frontend.mjs', 'tools/deploy-typography.ps1', 'tools/export-public.py',
-    'package.json', 'package-lock.json', '.github/workflows/ci.yml',
+    'package.json', 'package-lock.json', '.gitattributes', '.github/workflows/ci.yml',
 }
 private_parts = {'private', 'data', 'logs', 'runtime', 'output', 'knowledge_base', '.cache',
                  'releases', 'snapshots', 'node_modules', '__pycache__', '.git', '.worktrees'}

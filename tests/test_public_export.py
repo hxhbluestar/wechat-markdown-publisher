@@ -87,6 +87,7 @@ class PublicExportTests(unittest.TestCase):
 
     def test_readable_build_workflow_allowlist_and_pinned_runtime_are_exported(self):
         public_files = {
+            '.gitattributes': '* text=auto eol=lf\n',
             'tools/build-frontend.mjs': '// Real readable build entry\n',
             'config/deployment-files.json': '{"schema_version":1,"files":[]}\n',
             '.github/workflows/ci.yml': 'name: synthetic-ci\n',
