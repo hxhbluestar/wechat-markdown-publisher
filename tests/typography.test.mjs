@@ -75,8 +75,11 @@ test('legacy detail defaults match its original appearance while explicit 12px c
     const defaults = normalizeTypography({}, theme);
     assert.equal(defaults.caption_font_size, 13);
     assert.equal(defaults.table_font_size, 16);
-    assert.deepEqual(prepareTypography(html, { theme }, document, highlighter), { html, css: '' });
-    assert.deepEqual(prepareTypography(html, { theme, caption_font_size: 13, table_font_size: 16 }, document, highlighter), { html, css: '' });
+    const legacy = render(html, { theme });
+    assert.ok(legacy.holder.querySelector('table.wx-table-fit'));
+    assert.equal(legacy.holder.querySelector('figcaption').textContent, '旧说明');
+    assert.equal(computedRule(legacy.css, '#output .wx-typography td', 'font-size'), undefined);
+    assert.equal(prepareTypography(html, { theme, caption_font_size: 13, table_font_size: 16 }, document, highlighter).html, legacy.html);
     const selected = render(html, { theme, caption_font_size: 12, table_font_size: 12 });
     assert.equal(computedRule(selected.css, '#output .wx-typography figcaption', 'font-size'), '12px');
     assert.equal(computedRule(selected.css, '#output .wx-typography td', 'font-size'), '12px');
@@ -413,7 +416,7 @@ test('highlighter absence or thrown errors falls back to escaped plain code', ()
   }
 });
 
-test('small tables fit naturally while wide tables get one contained scroll area and visible hint', () => {
+test('small tables fit naturally while wide auto tables get one responsive scroll area', () => {
   const small = '<table><thead><tr><th>项目</th><th>值</th></tr></thead><tbody><tr><td>批量</td><td>4</td></tr></tbody></table>';
   const compact = render(small);
   assert.equal(compact.holder.querySelectorAll('.wx-table-scroll,.wx-table-hint').length, 0);
@@ -421,21 +424,21 @@ test('small tables fit naturally while wide tables get one contained scroll area
   const wide = '<section style="max-width:100%;overflow:auto"><table><thead><th>模型完整名称</th><th>启动路径</th><th>执行环境</th><th>详细说明</th></thead><tbody><tr><td><a href="https://example.com">模型</a></td><td><code>/a/long/path/to/model</code></td><td>Linux</td><td><em>保留说明</em></td></tr></tbody></table></section>';
   const wideResult = render(wide);
   assert.equal(wideResult.holder.querySelectorAll('.wx-table-scroll').length, 1);
-  assert.equal(wideResult.holder.querySelectorAll('.wx-table-hint').length, 1);
-  assert.match(wideResult.holder.querySelector('.wx-table-hint').textContent, /左右滑动/);
+  assert.equal(wideResult.holder.querySelectorAll('.wx-table-hint').length, 0);
+  assert.ok(wideResult.holder.querySelector('.wx-table-auto'));
   assert.equal(wideResult.holder.querySelector('table a').getAttribute('href'), 'https://example.com');
   assert.equal(wideResult.holder.querySelector('table em').textContent, '保留说明');
   assert.equal(computedRule(wideResult.css, '#output .wx-typography .wx-table-scroll', 'overflow-x'), 'auto');
 });
 
-test('auto fit tables break wide Latin runs inside fixed columns while explicit scroll preserves natural width', () => {
+test('auto fit tables wrap wide Latin runs while explicit scroll preserves natural width', () => {
   const word = 'WWWWWWWWWWWWWWW';
   const html = `<table><thead><tr><th>${word}</th><th>${word}</th></tr></thead><tbody><tr><td>${word}</td><td><a href="https://example.com">${word}</a></td></tr></tbody></table>`;
   const compact = render(html);
   const table = compact.holder.querySelector('table');
   assert.ok(table.matches('.wx-table-fit'));
   assert.equal(compact.holder.querySelectorAll('.wx-table-scroll').length, 0);
-  assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'table-layout'), 'fixed');
+  assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'table-layout'), 'auto');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'width'), '100%');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit th', 'overflow-wrap'), 'anywhere');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit td', 'overflow-wrap'), 'anywhere');

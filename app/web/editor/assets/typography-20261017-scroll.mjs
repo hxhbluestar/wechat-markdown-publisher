@@ -127,7 +127,7 @@ function typographyCSS(settings, theme, fresh, palette) {
       // also keeps the old code padding inside the available phone width.
       css += rule('.wx-code-pre,.wx-code-text', { display: 'block', 'box-sizing': 'border-box', width: 'auto', 'min-width': '0', 'max-width': '100%', 'overflow-x': 'hidden' });
     }
-    if (settings.table_mode !== 'auto') css += tableCSS(THEMES.minimal);
+    css += settings.table_mode === 'auto' ? tableLayoutCSS() : tableCSS(THEMES.minimal);
     css += smallTextCSS(settings, false);
     return css;
   }
@@ -250,16 +250,7 @@ function tableCSS(c) {
     rule('th,td', { padding: '10px 11px', border: '0', 'border-bottom': `1px solid ${c.rule}`, 'vertical-align': 'top', 'font-size': '13px', 'line-height': '1.75', color: c.ink, 'white-space': 'normal', 'overflow-wrap': 'break-word' }) +
     rule('th', { 'font-weight': '700', background: c.tint }) +
     rule('td', { background: c.paper }) +
-    // The width estimate decides whether scrolling is useful, not whether a
-    // glyph run fits on every phone. Fixed columns plus anywhere wrapping keep
-    // an auto-fit table contained even for wide Latin letters at 320 px.
-    rule('.wx-table-fit', { width: '100%', 'max-width': '100%', 'table-layout': 'fixed' }) +
-    rule('.wx-table-fit th,.wx-table-fit td', { 'overflow-wrap': 'anywhere', 'word-break': 'normal', 'min-width': '0' }) +
-    rule('.wx-table-block', { margin: '20px 0 24px', padding: '0', 'max-width': '100%', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
-    rule('.wx-table-scroll', { display: 'block', 'max-width': '100%', 'overflow-x': 'auto', 'overflow-y': 'auto', 'max-height': 'none', height: 'auto', '-webkit-overflow-scrolling': 'touch', padding: '0 0 8px', margin: '0' }) +
-    rule('.wx-table-scroll table', { display: 'table', width: 'max-content', 'min-width': '100%', 'table-layout': 'auto', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
-    rule('.wx-table-scroll th,.wx-table-scroll td', { 'white-space': 'nowrap', 'overflow-wrap': 'normal', overflow: 'visible', 'max-height': 'none', height: 'auto', 'text-overflow': 'clip' }) +
-    rule('.wx-table-scroll th code,.wx-table-scroll td code', { 'white-space': 'inherit', 'overflow-wrap': 'normal' }) +
+    tableLayoutCSS() +
     rule('.wx-table-hint,.wx-table-caption', { 'font-family': SANS, 'font-size': '11px', 'line-height': '1.75', color: c.secondary, margin: '0 0 9px', padding: '0' }) +
     rule('.wx-table-cards', { margin: '20px 0 24px', padding: '0', 'max-width': '100%' }) +
     rule('.wx-table-card', { margin: '0 0 13px', padding: '13px 14px', border: `1px solid ${c.rule}`, 'border-radius': '4px', background: c.paper }) +
@@ -272,6 +263,21 @@ function tableCSS(c) {
     rule('.wx-table-value .wx-code-block', { overflow: 'visible', 'max-width': '100%' }) +
     rule('.wx-table-key img,.wx-table-value img', { 'max-width': '100%', height: 'auto', 'object-fit': 'contain' }) +
     rule('.wx-table-value figure', { margin: '8px 0', width: 'auto', 'max-width': '100%' });
+}
+
+// Geometry is shared with saved legacy themes, without replacing their colors
+// or typography. A full-width table cannot also have horizontal outer margins.
+function tableLayoutCSS() {
+  return rule('table', { display: 'table', margin: '0', 'box-sizing': 'border-box', overflow: 'visible' }) +
+    rule('.wx-table-fit', { width: '100%', 'min-width': '0', 'max-width': '100%', 'table-layout': 'auto' }) +
+    rule('.wx-table-fit th,.wx-table-fit td', { 'overflow-wrap': 'anywhere', 'word-break': 'normal', 'min-width': '0' }) +
+    rule('.wx-table-block', { margin: '20px 0 24px', padding: '0', 'max-width': '100%', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
+    rule('.wx-table-scroll', { display: 'block', 'max-width': '100%', 'overflow-x': 'auto', 'overflow-y': 'auto', 'max-height': 'none', height: 'auto', '-webkit-overflow-scrolling': 'touch', padding: '0 0 8px', margin: '0' }) +
+    rule('.wx-table-scroll table', { display: 'table', width: 'max-content', 'min-width': '100%', 'table-layout': 'auto', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
+    rule('.wx-table-scroll th,.wx-table-scroll td', { 'white-space': 'nowrap', 'overflow-wrap': 'normal', overflow: 'visible', 'max-height': 'none', height: 'auto', 'text-overflow': 'clip' }) +
+    rule('.wx-table-scroll th code,.wx-table-scroll td code', { 'white-space': 'inherit', 'overflow-wrap': 'normal' }) +
+    rule('.wx-table-auto table', { width: '100%', 'table-layout': 'auto' }) +
+    rule('.wx-table-auto th,.wx-table-auto td,.wx-table-auto th code,.wx-table-auto td code', { 'white-space': 'normal', 'overflow-wrap': 'anywhere', 'word-break': 'normal' });
 }
 
 function readNodes(node) {
@@ -459,16 +465,22 @@ function prepareTables(root, settings, document) {
       hint.className = 'wx-table-hint';
       hint.textContent = '左右滑动查看完整表格';
       const scroll = document.createElement('section');
-      scroll.className = 'wx-table-scroll';
+      const automatic = settings.table_mode === 'auto';
+      scroll.className = `wx-table-scroll${automatic && !model.complex && !model.intrinsic ? ' wx-table-auto' : ''}`;
       target.replaceWith(block);
-      block.append(hint, scroll);
+      if (!automatic) block.append(hint);
+      block.append(scroll);
       scroll.append(table);
       // Authored grid dimensions remain effective despite the scoped scroll
       // table's max-content rule. Intrinsic widths still cover all data cells.
       const width = authoredDimension(table, 'width');
       const minimum = authoredDimension(table, 'min-width');
       if (width) table.style.setProperty('width', width, 'important');
-      table.style.setProperty('min-width', minimum || width || `${Math.max(360, Math.min(1600, model.width))}px`, 'important');
+      // Auto mode budgets a few readable characters per column, rather than
+      // locking every cell to its single-line width on an assumed 310px phone.
+      // CSS then adapts to the actual reader width, including inline-only export.
+      const readableWidth = model.complex || model.intrinsic ? '100%' : `${Math.min(model.width, model.count * (settings.table_font_size * 4 + 22))}px`;
+      table.style.setProperty('min-width', minimum || width || (automatic ? readableWidth : `${Math.max(360, Math.min(1600, model.width))}px`), 'important');
     } else {
       table.classList.add('wx-table-fit');
       if (target !== table) target.replaceWith(table);
@@ -575,7 +587,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   const theme = typeof options?.theme === 'string' ? options.theme : 'technical';
   const settings = normalizeTypography(options, theme);
   const fresh = NEW_THEMES.has(theme);
-  if (!fresh && settings.font_family === 'theme' && settings.font_size === 16 && settings.code_wrap === 'scroll' && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
+  if (!fresh && !/<table\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.code_wrap === 'scroll' && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
   if (!document?.createElement) throw new Error('Typography rendering requires a DOM document');
   const holder = document.createElement('div');
   holder.innerHTML = html;
@@ -587,7 +599,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   }
   root.className = `wx-typography${fresh ? ` wx-theme-${theme}` : ' wx-theme-legacy'}`;
   if (fresh || settings.code_wrap === 'wrap') prepareCode(root, document, highlighter, fresh);
-  if (fresh || settings.table_mode !== 'auto') prepareTables(root, settings, document);
+  prepareTables(root, settings, document);
   if (fresh) {
     prepareAlerts(root, document);
   }

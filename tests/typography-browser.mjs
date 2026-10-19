@@ -86,7 +86,7 @@ try {
   const authoredDoc=new DOMParser().parseFromString(authoredCaption,'text/html');
   check(authoredDoc.querySelector('figcaption')?.textContent==='图 1：实验室架构。','a handwritten italic image description becomes the controllable caption');
   check(/font-size:\s*12px/.test(authoredDoc.querySelector('figcaption').getAttribute('style')) && authoredDoc.body.textContent.includes('普通正文必须保留。') && !authoredDoc.body.textContent.includes('微信图片_'),'handwritten 12px captions preserve following body text and omit machine filename labels');
-  check(!renderer.previewWechatArticle(markdown,'grace','warm',settings).html.includes('wx-typography'),'legacy style remains outside the new typography layer');
+  check(renderer.previewWechatArticle(markdown,'grace','warm',settings).html.includes('wx-theme-legacy'),'legacy tables receive shared geometry while retaining the saved theme');
   const legacyHost=document.createElement('div');
   legacyHost.style.width='272px';
   legacyHost.innerHTML=renderer.exportWechatArticle('```plaintext\n'+('WW'.repeat(150))+'\n```','grace','warm',{...settings,code_wrap:'wrap'});
