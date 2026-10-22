@@ -39,3 +39,10 @@ test('repeated frontend builds produce identical executable assets', () => {
   };
   assert.equal(build(), build());
 });
+
+test('built text resources use canonical LF bytes before their cache identities are generated', () => {
+  for (const filename of ['workflow-ui-20261018.css','proofreading-20261017-scroll.mjs','typography-20261017-scroll.mjs']) {
+    const content = readFileSync(new URL('app/web/editor/assets/'+filename,root),'utf8');
+    assert.equal(content.includes('\r\n'),false,'Git and local build must hash the same text bytes: '+filename);
+  }
+});

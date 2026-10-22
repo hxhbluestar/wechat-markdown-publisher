@@ -18,7 +18,10 @@ await build({
   }}],
 });
 await copyFile(path.join(assets,'index-20261018-workflow.js'),path.join(assets,'index-20261017-scroll.js'));
-const copy=async(src,dest)=>copyFile(path.join(root,src),path.join(root,dest));
+// Git checks these text resources out as LF. Editors on Windows can save CRLF;
+// normalize before writing and hashing so a clean checkout builds the same page.
+const readText=async(filename)=>(await readFile(filename,'utf8')).replaceAll('\r\n','\n');
+const copy=async(src,dest)=>writeFile(path.join(root,dest),await readText(path.join(root,src)));
 for(const [src,dest] of [
   ['frontend/asset-paths.mjs','asset-paths-20261014.mjs'],
   ['frontend/article-spacing.mjs','article-spacing-20261017-scroll.mjs'],
@@ -36,14 +39,14 @@ for(const [src,dest] of [
   ['frontend/company-network.css','company-network-20261016.css'],
 ])await copy(src,'app/web/editor/assets/'+dest);
 for(const [name,dependency] of [['typography','article-spacing'],['typography-controls','typography'],['proofreading','proofreading-core'],['proofreading-core','proofreading-dictionary']]){
-  const content=await readFile(path.join(root,'frontend',name+'.mjs'),'utf8');
+  const content=await readText(path.join(root,'frontend',name+'.mjs'));
   await writeFile(path.join(assets,name+'-20261017-scroll.mjs'),content.replaceAll(`'./${dependency}.mjs'`,`'./${dependency}-20261017-scroll.mjs'`));
 }
 await copy('frontend/code-languages.js','app/web/vendor/highlight-ai-20261017.js');
 await mkdir(path.join(root,'app/web/vendor/mathjax-3.2.2'),{recursive:true});
 await copy('node_modules/mathjax/es5/tex-svg.js','app/web/vendor/mathjax-3.2.2/tex-svg.js');
 await copy('node_modules/mathjax/LICENSE','app/web/vendor/mathjax-3.2.2/LICENSE');
-let page=await readFile(path.join(root,'frontend/index.template.html'),'utf8');
+let page=await readText(path.join(root,'frontend/index.template.html'));
 page=page.replace('src="/editor/assets/index-CIPbZpsp.js"','src="/editor/assets/index-20261018-workflow.js"').replace('"/editor/assets/index-20261017-scroll.js"','"/editor/assets/index-20261018-workflow.js"');
 // A page query parameter does not change the identity of its subresources.
 // Stable content digests invalidate old browser entries without timestamps or
