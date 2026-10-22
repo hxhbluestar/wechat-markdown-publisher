@@ -1,4 +1,5 @@
 import {CODE_SAMPLES} from './code-samples.mjs';
+import {publishedCodeText} from './published-code-text.mjs';
 const results=[],report=document.querySelector('#code-report');
 const check=(condition,label)=>{if(!condition)throw new Error(label);results.push('PASS '+label);};
 const fence=(lang,code)=>'```'+lang+'\n'+code+'\n```';
@@ -14,17 +15,17 @@ try {
     const richPreview=renderer.previewWechatArticle(fence('python',rich),theme,'blue',{});
     const parsed=new DOMParser().parseFromString(richPreview.html,'text/html');
     const richHost=document.createElement('article');richHost.innerHTML=renderer.exportWechatArticle(fence('python',rich),theme,'blue',{});document.body.append(richHost);
-    const originalTokens=[...parsed.querySelectorAll('pre code span')],publishedTokens=[...richHost.querySelectorAll('pre code span')];
+    const originalTokens=[...parsed.querySelectorAll('pre code span')],publishedTokens=[...richHost.querySelectorAll('pre code span:not([data-wx-code-indent])')];
     const roleColors={};
     for(const [role,selector] of Object.entries({keyword:'.hljs-keyword',decorator:'.hljs-meta',string:'.hljs-string',number:'.hljs-number',literal:'.hljs-literal',type:'.hljs-type',function:'.hljs-title.function_',api:'.hljs-built_in',parameter:'.hljs-params',comment:'.hljs-comment'})) {
       const token=parsed.querySelector('pre code '+selector),published=publishedTokens[originalTokens.indexOf(token)];
-      check(!!token&&published?.textContent===token.textContent,theme+'/'+role+' survives inline publishing');
+      check(!!token&&publishedCodeText(published)===token.textContent,theme+'/'+role+' survives inline publishing');
       roleColors[role]=getComputedStyle(published).color;
     }
     check(new Set(Object.values(roleColors)).size>=9,theme+' has at least nine distinct semantic colors');
     check(roleColors.function!==roleColors.api&&roleColors.keyword!==roleColors.decorator&&roleColors.type!==roleColors.number,theme+' separates function/API, keyword/decorator and type/number');
     check(Object.values(roleColors).every(color=>contrast(color,getComputedStyle(richHost.querySelector('pre')).backgroundColor)>=4.5),theme+' rich semantic colors remain readable');
-    check(richHost.querySelector('pre code').textContent===rich,theme+' rich colors do not change code text');
+    check(publishedCodeText(richHost.querySelector('pre code'))===rich,theme+' rich colors do not change code text');
     richHost.remove();
     for(const [lang,code] of Object.entries(CODE_SAMPLES)) {
       const markdown=fence(lang,code),options={code_wrap:'scroll'};
@@ -32,14 +33,14 @@ try {
       const host=document.createElement('article');host.innerHTML=renderer.exportWechatArticle(markdown,theme,'blue',options);
       host.style.width='327px';document.body.append(host);
       const pre=host.querySelector('pre'),output=pre.querySelector('code'),tokens=[...output.querySelectorAll('span[style*="color"]')];
-      check(output.textContent===code,theme+'/'+lang+' original characters survive real export');
+      check(publishedCodeText(output)===code,theme+'/'+lang+' original characters survive real export');
       check(!host.querySelector('[class],script,style,button,iframe'),theme+'/'+lang+' colors do not depend on classes or scripts');
       check(tokens.length>0,theme+'/'+lang+' tokens survive inline export');
       if(['python','tilelang','triton','cpp','hip','cuda'].includes(lang)) {
         const parsedCode=new DOMParser().parseFromString(preview.html,'text/html');
         const sourceSpans=[...parsedCode.querySelectorAll('pre code span')];
         const functionTitle=parsedCode.querySelector('.hljs-title.function_,.hljs-function .hljs-title');
-        const publishedTitle=[...output.querySelectorAll('span')][sourceSpans.indexOf(functionTitle)];
+        const publishedTitle=[...output.querySelectorAll('span:not([data-wx-code-indent])')][sourceSpans.indexOf(functionTitle)];
         check(!!publishedTitle&&Number(getComputedStyle(publishedTitle).fontWeight)>=600,theme+'/'+lang+' function names remain emphasized in publishing HTML');
       }
       check(new DOMParser().parseFromString(preview.html,'text/html').querySelector('pre code').textContent===code,theme+'/'+lang+' preview and export agree');
@@ -53,7 +54,7 @@ try {
     for(const width of [278,327,690,744,820,1180])for(const mode of ['wrap','scroll']) {
       const host=document.createElement('article');host.style.width=width+'px';host.innerHTML=renderer.exportWechatArticle(fence('python',long),theme,'blue',{code_wrap:mode});document.body.append(host);
       const pre=host.querySelector('pre'),code=host.querySelector('pre code');
-      check(code.textContent===long && host.scrollWidth<=width+1,theme+'/'+width+'/'+mode+' contains complete long code');
+      check(publishedCodeText(code)===long && host.scrollWidth<=width+1,theme+'/'+width+'/'+mode+' contains complete long code');
       if(mode==='wrap')check(pre.scrollWidth<=pre.clientWidth+1,theme+'/'+width+' wrapped lines fit');
       else {pre.scrollLeft=pre.scrollWidth;check(pre.scrollLeft>0,theme+'/'+width+' long line can scroll to its end');}
       host.remove();

@@ -200,16 +200,16 @@ test('caption size controls override nested old caption styles without changing 
   }
 });
 
-test('legacy default HTML and stylesheet remain byte for byte untouched', () => {
-  const html = '<section class="container"><p style="font-size:16px">旧文</p><pre class="hljs code__pre"><code>x<br/>y</code></pre></section>';
+test('legacy prose without code or tables remains byte for byte untouched', () => {
+  const html = '<section class="container"><p style="font-size:16px">旧文</p></section>';
   assert.deepEqual(prepareTypography(html, { theme: 'grace' }, document, highlighter), { html, css: '' });
 });
 
-test('changing only legacy font size keeps the legacy theme font and code representation', () => {
+test('changing legacy font size keeps its theme font and normalizes code to original lines', () => {
   const { holder, css } = render('<p>旧文章字体</p><pre class="hljs code__pre"><code>x<br>y</code></pre>', { theme: 'grace', font_size: 18 });
   assert.equal(computedRule(css, '#output .wx-typography', 'font-family'), undefined);
   assert.equal(computedRule(css, '#output .wx-typography p', 'font-size'), '18px');
-  assert.equal(holder.querySelector('pre code').innerHTML, 'x<br>y');
+  assert.equal(holder.querySelector('pre code').textContent, 'x\ny');
   assert.equal(holder.querySelectorAll('.wx-code-caption').length, 0);
 });
 
@@ -391,7 +391,7 @@ test('legacy explicit wrap overrides old horizontal box layout while preserving 
     assert.equal(computedRule(result.css, selector, 'white-space'), 'pre-wrap');
     assert.equal(computedRule(result.css, selector, 'overflow-wrap'), 'anywhere');
   }
-  assert.deepEqual(prepareTypography(html, { theme: 'grace' }, document, highlighter), { html, css: '' });
+  assert.equal(render(html, {theme:'grace'}).holder.querySelector('pre code').textContent, source);
 });
 
 test('existing diff line wrappers retain every plus/minus marker and line boundary', () => {

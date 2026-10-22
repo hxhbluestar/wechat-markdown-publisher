@@ -1,5 +1,6 @@
 import { BS, MS, J8, AS, kd } from "./vendor/editor-engine-20261018.js";
-import { prepareTypography } from "./typography.mjs";
+import { prepareTypography, typographyAccent, typographyCodeColors } from "./typography.mjs";
+import { preparePublishingPresentation, preserveWechatCodeLayout } from "./publishing-presentation.mjs";
 import { applyBlockOverrides } from "./article-blocks.mjs";
 import { prepareRichMarkdown } from "./rich-content.mjs";
 const lexer = new AS();
@@ -39,7 +40,11 @@ export function previewWechatArticle(
     },
   );
   return {
-    html: blocks.html,
+    html: preparePublishingPresentation(blocks.html, {
+      document: options.document || globalThis.document,
+      linkColor: typographyAccent(theme,palette) || '#576b95',
+      codeColors: ['grace','default','simple'].includes(theme) ? typographyCodeColors(theme) : undefined,
+    }),
     unmatched: blocks.unmatched,
     css:
       MS(
@@ -60,7 +65,7 @@ export function exportWechatArticle(
     ...options,
     annotate: false,
   });
-  return J8.inlineContent(
+  return preserveWechatCodeLayout(J8.inlineContent(
     `<section id="output">${stripExportDecorations(preview.html, options.document || globalThis.document)}</section>`,
     preview.css,
     {
@@ -69,7 +74,7 @@ export function exportWechatArticle(
       resolveCSSVariables: true,
       removeStyleTags: true,
     },
-  )
+  ), options.document || globalThis.document)
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/\sid="output"/g, "")
     .replace(

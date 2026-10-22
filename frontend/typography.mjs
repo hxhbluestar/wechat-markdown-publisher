@@ -97,6 +97,10 @@ export function typographyAccent(theme, palette) {
   return (Object.hasOwn(colors,palette) ? colors[palette].accent : null) || THEMES[theme].accent;
 }
 
+export function typographyCodeColors(theme) {
+  return {...(CODE_COLORS[theme] || CODE_COLORS.minimal)};
+}
+
 export function escapeHtmlAttribute(value) {
   return String(value ?? '').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 }
@@ -587,7 +591,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   const theme = typeof options?.theme === 'string' ? options.theme : 'technical';
   const settings = normalizeTypography(options, theme);
   const fresh = NEW_THEMES.has(theme);
-  if (!fresh && !/<table\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.code_wrap === 'scroll' && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
+  if (!fresh && !/<(?:table|pre)\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.code_wrap === 'scroll' && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
   if (!document?.createElement) throw new Error('Typography rendering requires a DOM document');
   const holder = document.createElement('div');
   holder.innerHTML = html;
@@ -598,7 +602,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
     holder.append(root);
   }
   root.className = `wx-typography${fresh ? ` wx-theme-${theme}` : ' wx-theme-legacy'}`;
-  if (fresh || settings.code_wrap === 'wrap') prepareCode(root, document, highlighter, fresh);
+  prepareCode(root, document, highlighter, fresh);
   prepareTables(root, settings, document);
   if (fresh) {
     prepareAlerts(root, document);

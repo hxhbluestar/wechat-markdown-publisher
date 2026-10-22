@@ -408,6 +408,12 @@ class SyncWorkflowTests(unittest.TestCase):
         self.assertFalse(article_comparison(first, second)['changed'])
         self.assertTrue(article_comparison(first, {'content': second['content'].replace('echo  one', 'echo one')})['changed'])
 
+    def test_explicit_code_breaks_match_wechat_code_without_altering_spaces(self):
+        sent = {'content': '<pre><code>if True:<br><span style="display:inline-block;width:4ch">    </span>print("x")<br><br># END</code></pre>'}
+        remote = {'content': '<pre><code>if True:\n    print("x")\n\n# END</code></pre>'}
+        self.assertFalse(article_comparison(sent, remote)['changed'])
+        self.assertTrue(article_comparison(sent, {'content': remote['content'].replace('    print', '  print')})['changed'])
+
     def test_retry_recreates_missing_private_files_without_overwriting_intact_assets(self):
         self.put('images/one.png', png('red'))
         self.publisher.fail_once = True

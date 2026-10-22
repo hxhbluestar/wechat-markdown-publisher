@@ -55,7 +55,8 @@ try {
       await display(theme, device);
       const label = `${theme} ${device.id} ${device.width}px`;
       check(article.querySelectorAll('img').length === 18, `${label}: all 15 pictures plus 3 diagram/formula PNGs are present`);
-      const snippets = [...article.querySelectorAll('pre code')].map(node => node.textContent);
+      const readCode = node => node.nodeType===3 ? node.nodeValue : node.tagName==='BR' ? '\n' : [...node.childNodes].map(readCode).join('');
+      const snippets = [...article.querySelectorAll('pre code')].map(readCode);
       check(Object.values(CODE_SAMPLES).every(sample => snippets.includes(sample)), `${label}: every original code/log character remains copyable`);
       check(article.textContent.includes('ARTICLE-END-KEEP-Ω') && article.textContent.includes(WIDE_TABLE_LAST_CELL), `${label}: article end and final table column remain present`);
       check([...article.querySelectorAll('figcaption')].filter(node => IMAGE_TITLES.includes(node.textContent.trim())).length === 15, `${label}: all Chinese figure captions are preserved`);

@@ -33,19 +33,19 @@ with tempfile.TemporaryDirectory(prefix='publisher-layout-qa-') as data:
         def send_header(self,key,value):
             if key.lower()=='x-frame-options':value='SAMEORIGIN'
             if key.lower()=='content-security-policy':value=value.replace("frame-ancestors 'none'","frame-ancestors 'self'")
-            if key.lower()=='content-security-policy' and self.path.startswith(('/tests/table-layout-browser.','/tests/typography-browser.')):
+            if key.lower()=='content-security-policy' and self.path.startswith('/tests/'):
                 # Match the real editor's inline-style policy for rendered articles.
                 value=value.replace("style-src 'self';", "style-src 'self' 'unsafe-inline';")
                 value=value.replace("script-src 'self';", f"script-src 'self'{server.EDITOR_IMPORT_MAP_CSP};")
             return super().send_header(key,value)
         def do_GET(self):
             if self.path=='/qa/state':return self.send_json({'mutations':mutations})
-            if self.path.startswith(('/tests/editor-layout-browser.','/tests/table-layout-browser.','/tests/typography-browser.')):
+            if self.path.startswith('/tests/'):
                 name=self.path.split('?',1)[0].rsplit('/',1)[-1]
-                if name in {'editor-layout-browser.html','editor-layout-browser.mjs','table-layout-browser.html','table-layout-browser.mjs','typography-browser.html','typography-browser.mjs'}:
+                if name in {'editor-layout-browser.html','editor-layout-browser.mjs','table-layout-browser.html','table-layout-browser.mjs','typography-browser.html','typography-browser.mjs','publishing-browser.html','publishing-browser.mjs','code-highlighting-browser.html','code-highlighting-browser.mjs','code-samples.mjs','published-code-text.mjs'}:
                     payload=(ROOT/'tests'/name).read_bytes()
-                    if name=='typography-browser.html':
-                        payload=payload.replace(b'/editor/typography-browser.mjs',b'/tests/typography-browser.mjs')
+                    if name.endswith('.html'):
+                        payload=payload.replace(b'/editor/typography-browser.mjs',b'/tests/typography-browser.mjs').replace(b'/editor/code-highlighting-browser.mjs',b'/tests/code-highlighting-browser.mjs')
                         current_map=re.search(rb'<script type="importmap">.*?</script>',(ROOT/'app/web/editor/index.html').read_bytes(),re.S).group()
                         payload=re.sub(rb'<script type="importmap">.*?</script>',current_map,payload,flags=re.S)
                     self.send_response(200)
