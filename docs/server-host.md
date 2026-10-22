@@ -1,6 +1,6 @@
 # Windows 内网发布服务器
 
-服务器版在现有本机后端外增加 Caddy HTTPS 和 Basic Authentication。后端仍只监听 `127.0.0.1`，网页、稿件、图片和 API 全部经过登录；保留原 CSRF 校验。入口在改写后端 Host/Origin 之前拒绝外部 Origin 和跨站请求。
+服务器版在现有本机后端外增加 Caddy HTTPS 和 Basic Authentication。后端仍只监听 `127.0.0.1`，网页、稿件、图片和 API 全部经过登录；保留原 CSRF 校验。入口在改写后端 Host/Origin 之前拒绝外部 Origin 和跨站写请求，允许从其他网页正常点击进入编辑器的顶层 GET 导航。
 
 部署目录包含 `app/`、官方 Python 运行时 `runtime/`、`gateway/caddy.exe`、`gateway/Caddyfile`、`scripts/` 和独立的 `data/`。使用官方 Caddy Windows amd64 包，安装前按该版本官方 checksums 文件声明的 SHA512 校验，保留其许可证。
 

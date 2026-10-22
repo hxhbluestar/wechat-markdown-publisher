@@ -11,7 +11,10 @@ https://{$PUBLISHER_LISTEN_IP}:{$PUBLISHER_HTTPS_PORT} {
             not header Origin {$PUBLISHER_ORIGIN}
         }
         respond @foreign_origin "Invalid request origin" 403
-        @cross_site header Sec-Fetch-Site cross-site
+        @cross_site {
+            header Sec-Fetch-Site cross-site
+            method POST PUT PATCH DELETE
+        }
         respond @cross_site "Cross-site request denied" 403
         basic_auth {
             {$PUBLISHER_LOGIN_USER} {$PUBLISHER_PASSWORD_HASH}
