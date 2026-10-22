@@ -343,10 +343,15 @@ function htmlFindings(html, add) {
     );
     const size = /^([\d.]+)px$/.exec(css["font-size"] || "");
     const line = /^([\d.]+)px$/.exec(css["line-height"] || "");
+    const inlineAnnotation =
+      ["sup", "sub"].includes(tag) &&
+      (css.display || "inline").replace(/\s*!important\s*$/, "").trim() ===
+        "inline";
     if (
-      (size && line && Number(line[1]) < Number(size[1])) ||
-      (/^(?:0(?:\.\d+)?|\.\d+)$/.test(css["line-height"] || "") &&
-        Number(css["line-height"]) < 1)
+      !inlineAnnotation &&
+      ((size && line && Number(line[1]) < Number(size[1])) ||
+        (/^(?:0(?:\.\d+)?|\.\d+)$/.test(css["line-height"] || "") &&
+          Number(css["line-height"]) < 1))
     )
       add({
         code: "render-line-height",

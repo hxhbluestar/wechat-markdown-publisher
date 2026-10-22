@@ -284,6 +284,36 @@ class ServerPreflightTests(unittest.TestCase):
         report = self.report(source_html='<p style="height:20px;overflow:hidden;font-size:16px;line-height:18px">One line</p>')
         self.assertNotIn('layout-clipping', self.codes(report))
 
+    def test_inline_superscript_and_subscript_zero_line_height_do_not_block_sync(self):
+        for tag in ('sup', 'sub'):
+            for display in ('', 'display:inline;', 'display:inline!important;'):
+                with self.subTest(tag=tag, display=display):
+                    markup = ('<p style="font-size:16px;line-height:1.75">Reference'
+                              f'<{tag} style="{display}font-size:10px!important;line-height:0;vertical-align:{"super" if tag == "sup" else "sub"}">[1]</{tag}></p>')
+                    report = self.report(source_html=markup)
+                    self.assertNotIn('layout-line-height', self.codes(report))
+                    self.assertTrue(report['can_sync'])
+
+    def test_block_display_superscript_and_subscript_keep_line_height_validation(self):
+        for tag in ('sup', 'sub'):
+            for display in ('block', 'table-cell', 'inline-block'):
+                with self.subTest(tag=tag, display=display):
+                    report = self.report(source_html=f'<{tag} style="display:{display}!important;font-size:10px;line-height:0">[1]</{tag}>')
+                    self.assertIn('layout-line-height', self.codes(report))
+                    self.assertFalse(report['can_sync'])
+
+    def test_inline_annotation_does_not_exempt_unsafe_parent_line_height_or_clipping(self):
+        annotation = '<sup style="font-size:10px;line-height:0;vertical-align:super">[1]</sup>'
+        for style, expected in [('font-size:18px;line-height:12px', 'layout-line-height'),
+                                ('font-size:18px;height:2px;overflow:hidden', 'layout-clipping')]:
+            with self.subTest(expected=expected):
+                report = self.report(source_html=f'<p style="{style}">Text{annotation}</p>')
+                self.assertIn(expected, self.codes(report))
+                self.assertFalse(report['can_sync'])
+        report = self.report(source_html='<sup style="font-size:10px;line-height:0;height:2px;overflow:hidden">[1]</sup>')
+        self.assertIn('layout-clipping', self.codes(report))
+        self.assertFalse(report['can_sync'])
+
     def test_unicode_issue_offsets_are_utf16_and_are_not_mutations(self):
         draft = {**self.draft, 'content': '# 😀 example\n![lost](images/missing.png)'}
         report = self.report(draft)

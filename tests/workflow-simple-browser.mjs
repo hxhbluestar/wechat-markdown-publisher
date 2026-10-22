@@ -68,6 +68,22 @@ try {
     "seed article is open",
   );
   check($("#metaSource").value === "", "Source is deliberately empty");
+  await until(
+    () => !!$("#output sup"),
+    "normal external link renders a citation superscript",
+  );
+  check(
+    [...doc.querySelectorAll("#output sup")].some((sup) =>
+      /^\[\d+\]$/.test(sup.textContent),
+    ),
+    "Real renderer creates normal link citation superscripts before automatic sync",
+  );
+  check(
+    [...doc.querySelectorAll("#output sup")].some(
+      (sup) => win.getComputedStyle(sup).lineHeight === "0px",
+    ),
+    "Normal citation superscripts retain zero line height without becoming hidden-content blockers",
+  );
   check(
     $("#proofreadDraft").textContent.includes("1"),
     "The real editor detects the synthetic typo",

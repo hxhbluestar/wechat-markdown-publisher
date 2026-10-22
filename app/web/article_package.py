@@ -16,7 +16,7 @@ import zipfile
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, unquote, urlsplit
 
-RENDER_VERSION = '2026.10.22-workflow.4'
+RENDER_VERSION = '2026.10.22-workflow.5'
 MAX_METADATA_BYTES = 256 * 1024
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_font_size','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))

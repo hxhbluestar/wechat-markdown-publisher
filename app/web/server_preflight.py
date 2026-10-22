@@ -350,7 +350,11 @@ def preflight_article(store, draft, source_html, render_version, account_id):
                 font = _inline_font(node)
                 line_height = declarations.get('line-height', '')
                 line_px = _line_height(line_height, font)
-                if font and line_px is not None and line_px < font:
+                display = re.sub(r'\s*!important\s*$', '', declarations.get('display', '')).strip()
+                # Inline annotations use zero leading to avoid expanding the
+                # parent line box. Block displays and clipping stay validated.
+                inline_annotation = node.name in ('sup', 'sub') and display in ('', 'inline')
+                if font and line_px is not None and line_px < font and not inline_annotation:
                     issue('layout-line-height', 'blocker', 'html', '文字行高低于字号，存在重叠风险。', start, end)
                 hidden = any(declarations.get(key, '').split(' ')[0] in ('hidden', 'clip') for key in ('overflow', 'overflow-y'))
                 fixed = _pixels(declarations.get('height', '')) or _pixels(declarations.get('max-height', ''))

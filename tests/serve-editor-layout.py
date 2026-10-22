@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='publisher-layout-qa-') as data:
     server.DRAFT_STORE.create(content, 'AI 技术文章 · 编辑布局验收')
     workflow_seed=None
     if args.workflow_simple:
-        simple_content='# 建议不阻断同步验收\n\n这里有按装错字，以及 TODO 待检查项。来源留空，作者可以稍后处理建议。\n\n```python\nprint("synthetic acceptance only")\n```'
+        simple_content='# 建议不阻断同步验收\n\n这里有按装错字，以及 TODO 待检查项。来源留空，作者可以稍后处理建议。\n\n参阅 [ROCm 文档](https://rocm.docs.amd.com/)，正文链接应使用引用编号。\n\n```python\nprint("synthetic acceptance only")\n```'
         seed=server.DRAFT_STORE.create(simple_content, '建议不阻断同步验收')
         png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg=='
         server.DRAFT_STORE.save_asset(seed['id'], 'cover.png', png)

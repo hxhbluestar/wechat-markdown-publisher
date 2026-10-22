@@ -102,6 +102,13 @@ test('rendered HTML reveals definite unresolved diagrams and local clipping risk
   assert.ok(report.issues.filter(issue => issue.field === 'html').every(issue => html.slice(issue.from, issue.to).startsWith('<')));
 });
 
+test('normal inline reference superscripts and subscripts may use zero line height without overlap findings', () => {
+  const report = run('正文', {html:'<p style="font-size:17px;line-height:30px">参考<sup style="font-size:10px;line-height:0;vertical-align:super">[1]</sup> H<sub style="font-size:10px;line-height:0;vertical-align:sub">2</sub>O</p>'});
+  assert.equal(codes(report).includes('render-line-height'),false);
+  const unsafe = run('正文', {html:'<sup style="display:block;font-size:17px;line-height:0">block</sup><p style="font-size:17px;line-height:8px">正文<sup style="font-size:10px;line-height:0">[1]</sup></p>'});
+  assert.equal(unsafe.issues.filter(issue=>issue.code==='render-line-height').length,2);
+});
+
 test('rendered Mermaid SVG and KaTeX are accepted; no HTML means rendering is unverified', () => {
   const report = run('```mermaid\ngraph TD; A-->B\n```\n$x^2$', { html: '<svg class="mermaid"><text>A</text></svg><span class="katex">x</span>' });
   assert.equal(codes(report).some(code => code.startsWith('render-')), false);
