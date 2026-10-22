@@ -1,9 +1,10 @@
+import {publishedCodeText} from './published-code-text.mjs';
 const report=document.querySelector('#report'), samples=document.querySelector('#samples');
 const result={checks:0,failures:[]};
 const check=(ok,label)=>{result.checks++;if(!ok)result.failures.push(label);};
 const bash=['unset AITER_CONFIG_FMOE','BASE=$(python3 -c \'from aiter.jit.core import AITER_CONFIGS; print(AITER_CONFIGS.AITER_CONFIG_FMOE_FILE)\' | tail -n 1)','cp "$BASE" /work/fmoe_base.csv','cp "$BASE" /work/fmoe_candidate.csv','','python3 "$TUNER" \\','    -i /work/hy3_fmoe_shapes.csv \\','    -o /work/fmoe_candidate.csv \\','    --min_improvement_pct 3.0'].join('\n');
 const snippets={bash,python:'def inference(x):\n\tif x is not None:\n\t\treturn x + 1\n\n# END',cpp:'int main() {\n    return 0;\n}',tilelang:'@T.prim_func\ndef main(A: T.Buffer):\n    with T.Kernel(1):\n        T.copy(A, B)',powershell:'$items = Get-ChildItem\nforeach ($item in $items) {\n    Write-Host $item.Name\n}'};
-const read=node=>node.nodeType===3?node.nodeValue:node.tagName==='BR'?'\n':[...node.childNodes].map(read).join('');
+const read=publishedCodeText;
 try {
  const entry=new DOMParser().parseFromString(await fetch('/editor/').then(r=>r.text()),'text/html');
  const renderer=await import(entry.querySelector('script[type="module"][crossorigin]').getAttribute('src'));
@@ -39,6 +40,7 @@ try {
    const code=samples.querySelectorAll('pre code')[index];
    check(read(code)===source,label+' export preserves every original character including ASCII spaces and tabs of code '+index);
    check(code.querySelectorAll('br').length===source.split('\n').length-1,label+' code '+index+' has explicit line breaks');
+   check([...code.querySelectorAll('[data-wx-code-line-number]')].map(e=>e.textContent).join(',')===source.split('\n').map((_,i)=>i+1).join(','),label+' original logical lines have one line number each');
   }
   // Reproduce the reported failure: ignore white-space CSS and replace pre with
   // a normal section, as a rich-text editor can do. Line layout must survive.
@@ -48,7 +50,7 @@ try {
    while(pre.firstChild)section.append(pre.firstChild); pre.replaceWith(section);
   }
   const code=[...samples.querySelectorAll('code')].find(e=>e.querySelector('br'));
-  check(code.innerText.split('\n').map(line=>line.trim()).join('\n').trimEnd()===bash.split('\n').map(line=>line.trim()).join('\n').trimEnd(),label+' Bash lines remain separate after whitespace styles are stripped');
+  check([...code.querySelectorAll('[data-wx-code-line-text]')].map(e=>e.innerText.trim()).join('\n').trimEnd()===bash.split('\n').map(line=>line.trim()).join('\n').trimEnd(),label+' Bash lines remain separate after whitespace styles are stripped');
   check([...code.querySelectorAll('[data-wx-code-indent]')].every(e=>e.getBoundingClientRect().width>0),label+' indentation has real width even without whitespace CSS');
   const colors=new Set([...code.querySelectorAll('*')].filter(e=>e.textContent.trim()).map(e=>getComputedStyle(e).color));
   check(colors.size>1,label+' syntax colors survive the publishing transform');
@@ -59,3 +61,8 @@ try {
 }catch(error){result.failures.push(error.stack||String(error));}
 document.body.dataset.results=JSON.stringify(result);
 report.textContent=(result.failures.length?'FAIL':'PASS')+' · '+result.checks+' checks\n'+result.failures.slice(0,15).join('\n');
+document.querySelector('#selectCodeSample').addEventListener('click',()=>{
+ const range=document.createRange();range.selectNodeContents(samples.querySelector('pre code'));
+ const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+});
+report.dataset.copyExpected=bash;

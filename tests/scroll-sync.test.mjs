@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {parseHTML} from 'linkedom';
 import {sourceBlocks,matchPreviewBlocks,mapScrollPosition,connectScrollSync,scrollSyncMarkup} from '../frontend/scroll-sync.mjs';
 
+test('numbered multiline code keeps its source scroll anchor without treating gutter digits as code',()=>{
+  const {document}=parseHTML('<article><section class="wx-code-block"><pre><code><span><span data-wx-code-line-number="true" aria-hidden="true">1</span><span>def inference(x):\n</span></span><span><span data-wx-code-line-number="true" aria-hidden="true">2</span><span>    if x is not None:\n</span></span><span><span data-wx-code-line-number="true" aria-hidden="true">3</span><span>        return x + 123</span></span></code></pre></section></article>');
+  const blocks=[{type:'code',text:'def inference(x):\n    if x is not None:\n        return x + 123',from:10,to:90}];
+  const matches=matchPreviewBlocks(document.querySelector('article'),blocks);
+  assert.equal(matches.length,1);
+  assert.equal(matches[0].from,10);
+});
+
 test('source blocks keep real offsets through CRLF, front matter, blank lines and emoji',()=>{
   const source='---\r\ntitle: demo\r\n---\r\n# GPU 😀\r\n\r\n正文\r\n\r\n```py\r\nx = 1\r\n```\r\n';
   const content='# GPU 😀\n\n正文\n\n```py\nx = 1\n```\n';

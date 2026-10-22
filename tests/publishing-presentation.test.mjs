@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseHTML} from 'linkedom';
+import {publishedCodeText} from './published-code-text.mjs';
 let preparePublishingPresentation;
 try { ({preparePublishingPresentation}=await import('../frontend/publishing-presentation.mjs')); }
 catch(error) { if(error.code!=='ERR_MODULE_NOT_FOUND') throw error; }
@@ -15,7 +16,7 @@ test('code sizes stay 14px in blocks and 12px inline even with authored or table
   const root=render('<p style="font-size:18px">参数 <code style="font-size:24px!important"><b style="font-size:28px">batch_size</b></code></p><table><tr><td style="font-size:16px"><pre style="font-size:30px!important"><code><span style="font-size:22px">if True:\n\tprint("x")</span></code></pre></td></tr></table><div class="wx-code-caption" style="font-size:16px">Python</div>',{codeFontSize:14});
   for(const node of root.querySelectorAll('pre,pre *')) assert.equal(node.style.getPropertyValue('font-size'),'14px');
   for(const node of root.querySelectorAll('p code,p code *,.wx-code-caption')) assert.equal(node.style.getPropertyValue('font-size'),'12px');
-  assert.equal(root.querySelector('pre code').textContent,'if True:\n\tprint("x")');
+  assert.equal(publishedCodeText(root.querySelector('pre code')),'if True:\n\tprint("x")');
   assert.equal(root.querySelector('p').style.getPropertyValue('font-size'),'18px');
 });
 test('external links become colored underlined copyable text without losing formatted labels',()=>{
@@ -35,7 +36,7 @@ test('internal references, images and literal link examples inside code are pres
   assert.equal(root.querySelector('a[href]').getAttribute('href'),'#note-1');
   assert.equal(root.querySelectorAll('a[href]').length,1);
   assert.equal(root.querySelector('img').getAttribute('src'),'image.png');
-  assert.equal(root.querySelector('pre code').textContent,'<a href="https://example.com">demo</a>');
+  assert.equal(publishedCodeText(root.querySelector('pre code')),'<a href="https://example.com">demo</a>');
   assert.equal(root.querySelector('.wx-external-link').textContent,'示意图[1]');
 });
 test('presentation is idempotent and cannot turn URL text into markup',()=>{

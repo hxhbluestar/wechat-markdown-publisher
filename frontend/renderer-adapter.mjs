@@ -44,6 +44,8 @@ export function previewWechatArticle(
       document: options.document || globalThis.document,
       linkColor: typographyAccent(theme,palette) || '#576b95',
       codeFontSize: options.code_font_size,
+      codeWrap: options.code_wrap,
+      lineNumberColor: typographyCodeColors(theme).comment,
       codeColors: ['grace','default','simple'].includes(theme) ? typographyCodeColors(theme) : undefined,
     }),
     unmatched: blocks.unmatched,

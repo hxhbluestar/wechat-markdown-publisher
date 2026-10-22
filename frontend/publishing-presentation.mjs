@@ -1,7 +1,9 @@
+import {addCodeLineNumbers} from './code-line-numbers.mjs';
 /** Publishing-only presentation; never modifies the Markdown editor document. */
-export function preparePublishingPresentation(html, {document = globalThis.document, linkColor = '#576b95', codeColors, codeFontSize = 12} = {}) {
+export function preparePublishingPresentation(html, {document = globalThis.document, linkColor = '#576b95', codeColors, codeFontSize = 12, codeWrap='wrap',lineNumberColor='#657082'} = {}) {
   const root=document.createElement('div');
   root.innerHTML=html;
+  addCodeLineNumbers(root,document,{wrap:codeWrap!=='scroll',color:lineNumberColor});
   const size=(typeof codeFontSize==='number'||typeof codeFontSize==='string')&&[12,14].includes(Number(codeFontSize))?Number(codeFontSize):12;
   for (const pre of root.querySelectorAll('pre')) {
     for (const node of [pre,...pre.querySelectorAll('*')]) node.style.setProperty('font-size',size+'px','important');
@@ -132,6 +134,8 @@ export function preserveWechatCodeLayout(html, document = globalThis.document) {
     let lineStart=true, column=0;
     const indentWidth=value=>{ const before=column; for(const char of value) column+=char==='\t'?4-column%4:1; return column-before; };
     const visit=node=>{
+      if(node.nodeType===1&&node.hasAttribute('data-wx-code-line-number')) return;
+      if(node.nodeType===1&&node.hasAttribute('data-wx-code-line-text')) { lineStart=true;column=0; }
       if(node.nodeType===3) {
         const value=node.nodeValue.replace(/\r\n?/g,'\n');
         const fragment=document.createDocumentFragment();

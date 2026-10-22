@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {parseHTML} from 'linkedom';
 import {preparePublishingPresentation} from '../frontend/publishing-presentation.mjs';
 import {prepareTypography,normalizeTypography} from '../frontend/typography.mjs';
+import {publishedCodeText} from './published-code-text.mjs';
 const {document}=parseHTML('<html><body></body></html>');
 const render=(html,options={})=>{
   const root=document.createElement('div');
@@ -35,7 +36,7 @@ test('bare URL and imported label-URL shorthand stay compact; image and code con
   const root=render('<p>[项目说明]<a href="https://github.com/ROCm/aiter/blob/main/README.md">https://github.com/ROCm/aiter/blob/main/README.md</a>，<a href="https://example.com/very/long?q=1">https://example.com/very/long?q=1</a></p><p><a href="https://example.com/image"><img src="local.png" alt="架构图"></a></p><a href="#note">注释</a><pre><code>https://example.com/a</code></pre>');
   assert.equal(root.querySelector('p').textContent,'项目说明[1]，example.com[2]');
   assert.equal(root.querySelector('img').getAttribute('src'),'local.png');
-  assert.equal(root.querySelector('pre code').textContent,'https://example.com/a');
+  assert.equal(publishedCodeText(root.querySelector('pre code')),'https://example.com/a');
   assert.equal(root.querySelector('a').getAttribute('href'),'#note');
 });
 test('compacting a linked bare URL never removes linked media',()=>{
@@ -52,7 +53,7 @@ test('plain imported name-URL text and bare URLs become compact references outsi
   const root=render('<section class="wx-typography"><p>参考[项目说明]https://github.com/ROCm/aiter/blob/main/README.md、[调优脚本]https://github.com/ROCm/aiter/blob/main/.github/scripts/op_tune.sh。裸网址 https://example.com/docs.</p><pre><code>curl https://example.com/code</code></pre><p><code>https://example.com/inline</code></p></section>');
   assert.equal(root.querySelector('p').textContent,'参考项目说明[1]、调优脚本[2]。裸网址 example.com[3].');
   assert.equal(root.querySelectorAll('[data-wx-reference-url]').length,3);
-  assert.equal(root.querySelector('pre code').textContent,'curl https://example.com/code');
+  assert.equal(publishedCodeText(root.querySelector('pre code')),'curl https://example.com/code');
   assert.equal(root.querySelector('p code').textContent,'https://example.com/inline');
   assert.equal(render(root.innerHTML).innerHTML,root.innerHTML);
 });

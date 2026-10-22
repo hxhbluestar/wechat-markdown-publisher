@@ -414,6 +414,45 @@ class SyncWorkflowTests(unittest.TestCase):
         self.assertFalse(article_comparison(sent, remote)['changed'])
         self.assertTrue(article_comparison(sent, {'content': remote['content'].replace('    print', '  print')})['changed'])
 
+    def test_remote_comparison_ignores_explicit_code_line_numbers_without_classes(self):
+        plain = {'content': '<pre><code>x = 123\n\n\tprint(x)\n</code></pre>'}
+        numbered = {'content': '<pre><code>'
+                    '<span data-wx-code-line="true"><span data-wx-code-line-number="true" aria-hidden="true">1</span><span data-wx-code-line-text="true">x = 123<br></span></span>'
+                    '<span data-wx-code-line="true"><span data-wx-code-line-number="true" aria-hidden="true">2</span><span data-wx-code-line-text="true"><br></span></span>'
+                    '<span data-wx-code-line="true"><span data-wx-code-line-number="true" aria-hidden="true">3</span><span data-wx-code-line-text="true"><span data-wx-code-indent="true">\t</span>print(x)<br></span></span>'
+                    '<span data-wx-code-line="true"><span data-wx-code-line-number="true" aria-hidden="true">4</span><span data-wx-code-line-text="true"></span></span>'
+                    '</code></pre>'}
+        self.assertFalse(article_comparison(plain, numbered)['changed'])
+        self.assertEqual(normalized_remote_article(numbered)['articles'][0]['blocks'],
+                         [{'type': 'code', 'text': 'x = 123\n\n\tprint(x)\n'}])
+        self.assertTrue(article_comparison(plain, {'content': numbered['content'].replace('x = 123', 'x = 124')})['changed'])
+
+    def test_remote_code_requires_both_exact_line_number_markers_before_ignoring_text(self):
+        plain = {'content': '<pre><code>123\n42</code></pre>'}
+        for attrs in ('aria-hidden="true"', 'data-wx-code-line-number="true"',
+                      'data-wx-code-line-number="false" aria-hidden="true"',
+                      'data-wx-code-line-number="true" aria-hidden="false"'):
+            with self.subTest(attrs=attrs):
+                wrapped = {'content': f'<pre><code>123<br><span {attrs}>42</span></code></pre>'}
+                self.assertFalse(article_comparison(plain, wrapped)['changed'])
+                self.assertTrue(article_comparison(plain, {'content': wrapped['content'].replace('>42<', '>43<')})['changed'])
+
+    def test_remote_line_number_markers_do_not_hide_prose_changes(self):
+        original = {'content': '<p>Before <span data-wx-code-line-number="true" aria-hidden="true">123</span> after.</p>'}
+        self.assertEqual(normalized_remote_article(original)['articles'][0]['blocks'],
+                         [{'type': 'paragraph', 'text': 'Before 123 after.'}])
+        self.assertTrue(article_comparison(original, {'content': original['content'].replace('>123<', '>124<')})['changed'])
+
+    def test_remote_table_cell_text_excludes_numbers_only_inside_code(self):
+        plain = {'content': '<table><tr><td>Before 7<pre><code>x = 123\n</code></pre>after.</td></tr></table>'}
+        numbered = {'content': '<table><tr><td>Before 7<pre><code>'
+                    '<span data-wx-code-line-number="true" aria-hidden="true">1</span><span data-wx-code-line-text="true">x = 123<br></span>'
+                    '<span data-wx-code-line-number="true" aria-hidden="true">2</span><span data-wx-code-line-text="true"></span>'
+                    '</code></pre>after.</td></tr></table>'}
+        self.assertFalse(article_comparison(plain, numbered)['changed'])
+        self.assertTrue(article_comparison(plain, {'content': numbered['content'].replace('x = 123', 'x = 124')})['changed'])
+        self.assertTrue(article_comparison(plain, {'content': numbered['content'].replace('Before 7', 'Before 8')})['changed'])
+
     def test_retry_recreates_missing_private_files_without_overwriting_intact_assets(self):
         self.put('images/one.png', png('red'))
         self.publisher.fail_once = True

@@ -295,12 +295,12 @@ function readNodes(node) {
   if (node.nodeType === 3) return node.nodeValue;
   if (node.nodeType !== 1) return '';
   if (node.tagName === 'BR') return '\n';
-  if (node.classList.contains('line-numbers') || node.classList.contains('mac-sign')) return '';
+  if (node.hasAttribute('data-wx-code-line-number') || node.classList.contains('line-numbers') || node.classList.contains('mac-sign')) return '';
   return [...node.childNodes].map(readNodes).join('');
 }
 
 function codeSource(code, language) {
-  if (code.hasAttribute('data-wx-code')) return code.textContent;
+  if (code.hasAttribute('data-wx-code')) return readNodes(code);
   if (code.hasAttribute('data-source-code')) {
     try { return decodeURIComponent(code.getAttribute('data-source-code')); } catch { /* Continue with the rendered text for malformed legacy attributes. */ }
   }

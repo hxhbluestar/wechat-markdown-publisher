@@ -11,6 +11,12 @@ const plain = (token) =>
     : token.items
       ? token.items.map(plain).join("")
       : token.text || "";
+const codeText = (node) => {
+  if(node.nodeType===3) return node.nodeValue;
+  if(node.nodeType!==1 || node.getAttribute('data-wx-code-line-number')==='true') return '';
+  if(node.tagName==='BR') return '\n';
+  return [...node.childNodes].map(codeText).join('');
+};
 
 export function scrollSyncMarkup() {
   return '<button class="sync-scroll-toggle" id="syncScrollToggle" type="button" aria-pressed="true" title="左右双向同步滚动；点击可独立查看">⇅ 同步滚动</button>';
@@ -77,7 +83,7 @@ export function matchPreviewBlocks(preview, blocks) {
       const code = element.querySelector("code");
       const text =
         block.type === "code"
-          ? code?.textContent || element.textContent
+          ? codeText(code || element)
           : element.textContent +
             " " +
             [...element.querySelectorAll("img")]

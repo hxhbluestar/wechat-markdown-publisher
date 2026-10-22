@@ -120,6 +120,12 @@ def _hidden(node):
 def _plain(node, code=False):
     if isinstance(node, str):
         return node.replace('\r\n', '\n').replace('\r', '\n') if code else node
+    code = code or node['tag'] in {'pre', 'code'}
+    # Publishing removes CSS classes; explicit markers identify only generated
+    # code gutters, while aria-hidden alone must not conceal source characters.
+    if (code and node['attrs'].get('data-wx-code-line-number') == 'true'
+            and node['attrs'].get('aria-hidden') == 'true'):
+        return ''
     if _hidden(node) or node['tag'] == 'img':
         return ''
     if node['tag'] == 'br':
