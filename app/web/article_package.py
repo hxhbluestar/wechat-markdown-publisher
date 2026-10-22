@@ -16,10 +16,10 @@ import zipfile
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, unquote, urlsplit
 
-RENDER_VERSION = '2026.10.22-presentation.1'
+RENDER_VERSION = '2026.10.22-presentation.2'
 MAX_METADATA_BYTES = 256 * 1024
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
-EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))
+EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_font_size','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))
 CONDITION_FIELDS = frozenset(('hardware','vram','os_kernel','rocm_version','framework_version','model_version','precision','parallelism','input_output_length','concurrency','test_date','raw_data_source'))
 HASH = re.compile(r'[a-f0-9]{64}\Z')
 CREDENTIAL = re.compile(r'(?:[a-z0-9]+[_-])*(?:access[_-]?token|refresh[_-]?token|api[_-]?(?:token|key)|app[_-]?secret|secret|password|passwd|cookie|authorization|credentials|token)\Z', re.I)
@@ -135,6 +135,10 @@ def safe_package_metadata(metadata):
         elif key in ('show_cover_pic','need_open_comment','only_fans_can_comment'):
             if type(value) is not bool:
                 raise PackageValidationError('Invalid package Boolean metadata')
+            result[key] = value
+        elif key == 'code_font_size':
+            if type(value) is not int or value not in (12, 14):
+                raise PackageValidationError('Invalid package code font size')
             result[key] = value
         elif key in ('font_size','caption_font_size','table_font_size'):
             result[key] = _number(value, 15 if key == 'font_size' else 12, 18 if key == 'font_size' else 16, integer=True)

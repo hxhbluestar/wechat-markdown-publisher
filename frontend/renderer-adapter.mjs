@@ -43,6 +43,7 @@ export function previewWechatArticle(
     html: preparePublishingPresentation(blocks.html, {
       document: options.document || globalThis.document,
       linkColor: typographyAccent(theme,palette) || '#576b95',
+      codeFontSize: options.code_font_size,
       codeColors: ['grace','default','simple'].includes(theme) ? typographyCodeColors(theme) : undefined,
     }),
     unmatched: blocks.unmatched,

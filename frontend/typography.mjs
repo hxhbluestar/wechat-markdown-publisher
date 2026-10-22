@@ -15,7 +15,8 @@ export function normalizeTypography(settings, theme = 'technical') {
   return {
     font_family: ['theme', 'sans', 'serif'].includes(input.font_family) ? input.font_family : 'theme',
     font_size: [15, 16, 17, 18].includes(size) ? size : NEW_THEMES.has(theme) ? 17 : 16,
-    code_wrap: ['scroll', 'wrap'].includes(input.code_wrap) ? input.code_wrap : 'scroll',
+    code_font_size: [12,14].includes(typeof input.code_font_size==='number'||typeof input.code_font_size==='string'?Number(input.code_font_size):NaN) ? Number(input.code_font_size) : 12,
+    code_wrap: ['scroll', 'wrap'].includes(input.code_wrap) ? input.code_wrap : 'wrap',
     table_mode: ['auto', 'scroll', 'cards'].includes(input.table_mode) ? input.table_mode : 'auto',
     caption_font_size: smallSize(input.caption_font_size, NEW_THEMES.has(theme) ? 12 : 13),
     table_font_size: smallSize(input.table_font_size, NEW_THEMES.has(theme) ? 13 : 16),
@@ -23,7 +24,7 @@ export function normalizeTypography(settings, theme = 'technical') {
 }
 
 const THEMES = {
-  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#2c3d55', label: '#a9c0dc' },
+  technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#41536b', label: '#a9c0dc' },
   journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#7c7061', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451' },
   minimal: { paper: '#ffffff', ink: '#25272b', secondary: '#666b73', accent: '#3c4653', rule: '#dfe2e7', tint: '#f2f4f6', code: '#f2f4f6', codeInk: '#313b48', codeRule: '#dce1e8', label: '#657082' },
   obsidian: { dark: true, darkCode: true, paper: '#111b22', ink: '#e6edf3', secondary: '#abbcc6', accent: '#69d7c1', rule: '#344b58', tint: '#1c313b', code: '#0b141c', codeInk: '#e5eff5', codeRule: '#2b424f', label: '#b3c8d5' },
@@ -133,6 +134,7 @@ function typographyCSS(settings, theme, fresh, palette) {
     }
     css += settings.table_mode === 'auto' ? tableLayoutCSS() : tableCSS(THEMES.minimal);
     css += smallTextCSS(settings, false);
+    css += publishingCodeCSS(settings,THEMES.minimal);
     return css;
   }
   const palettes = THEMES[theme].dark ? DARK_PALETTES : PALETTES;
@@ -165,10 +167,6 @@ function typographyCSS(settings, theme, fresh, palette) {
   css += rule('.wx-alert-warning,.wx-alert-caution', { 'border-left': `3px solid ${c.dark ? '#be8a4d' : '#a55e25'}` });
   css += rule('.wx-alert-warning .wx-alert-title,.wx-alert-caution .wx-alert-title', { color: c.dark ? '#efbd7a' : '#97511f' });
   css += rule('.wx-alert-title svg', { display: 'none' });
-  css += rule('.wx-code-block', { margin: '22px 0 26px', padding: '0', background: c.code, color: c.codeInk, border: `1px solid ${c.codeRule}`, 'border-radius': theme === 'technical' || c.darkCode ? '8px' : '5px', overflow: 'hidden', 'max-width': '100%' });
-  css += rule('.wx-code-caption', { display: 'block', margin: '0', padding: '9px 15px', color: c.label, background: c.code, 'border-bottom': `1px solid ${c.codeRule}`, 'font-family': MONO, 'font-size': '12px', 'font-weight': '500', 'letter-spacing': '0.3px', 'line-height': '1.5', 'text-align': 'left' });
-  css += rule('.wx-code-pre', { display: 'block', margin: '0', padding: '16px 15px 19px', background: c.code, color: c.codeInk, border: '0', 'border-radius': '0', 'box-shadow': 'none', 'max-width': '100%', 'overflow-x': wrap ? 'hidden' : 'auto', 'overflow-y': 'hidden', 'font-family': MONO, 'font-size': '14px', 'line-height': '1.75', 'text-align': 'left', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'tab-size': '4' });
-  css += rule('.wx-code-text', { display: 'block', margin: '0', padding: '0', background: 'transparent', color: c.codeInk, border: '0', 'border-radius': '0', 'font-family': MONO, 'font-size': '14px', 'line-height': '1.75', 'font-variant-ligatures': 'none', 'letter-spacing': '0', 'white-space': wrap ? 'pre-wrap' : 'pre', 'word-break': 'normal', 'overflow-wrap': wrap ? 'anywhere' : 'normal', 'text-align': 'left', 'tab-size': '4', 'text-shadow': 'none' });
   const tokenGroups = [
     ['.hljs-comment,.hljs-quote', c.comment],
     ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag', c.keyword],
@@ -199,8 +197,17 @@ function typographyCSS(settings, theme, fresh, palette) {
   if (theme === 'technical') css += technicalCSS(c, accentLine);
   css += laboratoryCSS(theme, c, accentLine);
   css += smallTextCSS(settings, true);
+  css += publishingCodeCSS(settings,c);
   css += articleSpacingCSS(rule);
   return css;
+}
+
+function publishingCodeCSS(settings,c) {
+  const wrap=settings.code_wrap==='wrap';
+  return rule('.wx-code-block',{margin:'20px 0',padding:'0',background:c.code,color:c.codeInk,border:`1px solid ${c.codeRule}`,'border-radius':'7px',overflow:'hidden','max-width':'100%','box-sizing':'border-box'})+
+    rule('.wx-code-caption',{display:'block',margin:'0',padding:'9px 14px',color:c.label,background:c.code,border:'0','font-family':MONO,'font-size':'12px','font-weight':'500','line-height':'1.5','text-align':'left','box-sizing':'border-box'})+
+    rule('.wx-code-pre',{display:'block',margin:'0',padding:'13px 14px 15px',background:c.code,color:c.codeInk,border:'0','border-top':`1px solid ${c.codeRule}`,'border-radius':'0','box-shadow':'none','box-sizing':'border-box',width:'auto','min-width':'0','max-width':'100%','overflow-x':wrap?'hidden':'auto','overflow-y':'hidden','font-family':MONO,'font-size':settings.code_font_size+'px','line-height':'1.75','text-align':'left','white-space':wrap?'pre-wrap':'pre','overflow-wrap':wrap?'anywhere':'normal','word-break':'normal','tab-size':'4'})+
+    rule('.wx-code-text',{display:'block',margin:'0',padding:'0',background:'transparent',color:c.codeInk,border:'0','border-radius':'0','font-family':MONO,'font-size':settings.code_font_size+'px','line-height':'1.75','letter-spacing':'0','font-variant-ligatures':'none','white-space':wrap?'pre-wrap':'pre','overflow-wrap':wrap?'anywhere':'normal','word-break':'normal','tab-size':'4','text-shadow':'none'});
 }
 
 function technicalCSS(c, accent) {
@@ -355,7 +362,7 @@ function prepareCode(root, document, highlighter, fresh) {
       code.textContent = source;
     }
     pre.replaceChildren(code);
-    if (fresh) {
+    {
       pre.className = 'wx-code-pre';
       pre.removeAttribute('style');
       let block = pre.parentElement;
@@ -366,12 +373,10 @@ function prepareCode(root, document, highlighter, fresh) {
         block.append(pre);
       }
       for (const prior of [...block.querySelectorAll('.wx-code-caption')]) prior.remove();
-      const caption = document.createElement('div');
+      const caption = document.createElement('section');
       caption.className = 'wx-code-caption';
       caption.textContent = languageLabel(language);
       block.insertBefore(caption, pre);
-    } else {
-      pre.classList.add('wx-code-pre');
     }
   }
 }
@@ -591,7 +596,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   const theme = typeof options?.theme === 'string' ? options.theme : 'technical';
   const settings = normalizeTypography(options, theme);
   const fresh = NEW_THEMES.has(theme);
-  if (!fresh && !/<(?:table|pre)\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.code_wrap === 'scroll' && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
+  if (!fresh && !/<(?:table|pre)\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
   if (!document?.createElement) throw new Error('Typography rendering requires a DOM document');
   const holder = document.createElement('div');
   holder.innerHTML = html;

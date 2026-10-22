@@ -7,21 +7,33 @@ const read=node=>node.nodeType===3?node.nodeValue:node.tagName==='BR'?'\n':[...n
 try {
  const entry=new DOMParser().parseFromString(await fetch('/editor/').then(r=>r.text()),'text/html');
  const renderer=await import(entry.querySelector('script[type="module"][crossorigin]').getAttribute('src'));
- const markdown=['# 技术文章','参数 `batch_size`，参考 [官方文档](https://example.com/docs?q=a&b=2)。',...Object.entries(snippets).map(([lang,source])=>'```'+lang+'\n'+source+'\n```'),'| 配置 | 示例 |\n| --- | --- |\n| 参数 | `dtype` 和 [源码](https://github.com/AMD-AIG/Hyperloom) |'].join('\n\n');
- for(const theme of ['technical','journal','minimal','obsidian','deepsea','teal','grace','default','simple']) for(const mode of ['scroll','wrap']) {
-  const label=theme+'/'+mode, options={font_size:18,table_font_size:16,code_wrap:mode};
+ const markdown=['# 技术文章','参数 `batch_size`，参考 [官方文档](https://example.com/docs?q=a&b=2)。','导入资料：[项目说明]https://github.com/ROCm/aiter/blob/main/README.md。',...Object.entries(snippets).map(([lang,source])=>'```'+lang+'\n'+source+'\n```'),'| 配置 | 示例 |\n| --- | --- |\n| 参数 | `dtype` 和 [源码](https://github.com/AMD-AIG/Hyperloom) |'].join('\n\n');
+ for(const theme of ['technical','journal','minimal','obsidian','deepsea','teal','grace','default','simple']) for(const mode of ['scroll','wrap']) for(const codeSize of [12,14]) {
+  const label=theme+'/'+mode+'/'+codeSize, options={font_size:18,table_font_size:16,code_wrap:mode,code_font_size:codeSize};
   const preview=renderer.previewWechatArticle(markdown,theme,'blue',options);
   const previewRoot=new DOMParser().parseFromString(preview.html,'text/html');
   check(!previewRoot.querySelector('a[href^="http"]'),label+' preview has no clickable external URL');
   check(Object.values(snippets).every(source=>[...previewRoot.querySelectorAll('pre code')].some(code=>read(code).replace(/\u00a0/g,' ').replace(/\t/g,'    ')===source.replace(/\t/g,'    '))),label+' preview preserves every original code line and indentation');
   samples.innerHTML=renderer.exportWechatArticle(markdown,theme,'blue',options);
   check(!samples.querySelector('[class],style,script,a[href]'),label+' export is inline markup with nonclickable links');
-  check(samples.textContent.includes('官方文档（https://example.com/docs?q=a&b=2）'),label+' full external URL remains visible for copying');
-  const link=[...samples.querySelectorAll('span')].find(e=>e.textContent==='官方文档（https://example.com/docs?q=a&b=2）');
+  check(samples.textContent.includes('https://example.com/docs?q=a&b=2') && !samples.querySelector('p').textContent.includes('https://'),label+' full URL is in references without expanding prose');
+  const link=[...samples.querySelectorAll('span')].find(e=>e.textContent==='官方文档[1]');
   check(link && getComputedStyle(link).textDecorationLine.includes('underline'),label+' external text retains underline');
+  check([...samples.querySelectorAll('span')].some(e=>e.textContent==='项目说明[2]'),label+' imported plain label-URL is compact too');
   for(const code of samples.querySelectorAll('code')) {
-   const block=code.closest('pre'), size=block?14:12;
+   const block=code.closest('pre'), size=block?codeSize:12;
    check([code,...code.querySelectorAll('*')].every(e=>parseFloat(getComputedStyle(e).fontSize)===size),label+' code computes to '+size+'px including colored tokens and table content');
+  }
+  for(const pre of samples.querySelectorAll('pre')) {
+   const title=pre.previousElementSibling;
+   check(title?.tagName==='SECTION' && getComputedStyle(title).fontSize==='12px',label+' language header has its own real 12px element');
+   // Browser zoom/DPR may quantize a declared 1px border below one CSS pixel.
+   check(getComputedStyle(pre).borderTopStyle==='solid' && parseFloat(getComputedStyle(pre).borderTopWidth)>0 && /border-top:\s*1px solid/.test(pre.getAttribute('style')),label+' published separator is present on code body');
+  }
+  if(mode==='wrap') for(const width of [320,393,690,820]) {
+   samples.style.width=width+'px';samples.style.boxSizing='border-box';
+   check([...samples.querySelectorAll('pre,pre code')].every(e=>e.scrollWidth<=e.clientWidth+1),label+' no clipped code at '+width+'px');
+   check(samples.scrollWidth<=samples.clientWidth+1,label+' references do not widen article at '+width+'px');
   }
   for(const [index,source] of Object.values(snippets).entries()) {
    const code=samples.querySelectorAll('pre code')[index];
@@ -40,9 +52,10 @@ try {
   check([...code.querySelectorAll('[data-wx-code-indent]')].every(e=>e.getBoundingClientRect().width>0),label+' indentation has real width even without whitespace CSS');
   const colors=new Set([...code.querySelectorAll('*')].filter(e=>e.textContent.trim()).map(e=>getComputedStyle(e).color));
   check(colors.size>1,label+' syntax colors survive the publishing transform');
-  if(label==='grace/scroll') result.legacySnippet=code.outerHTML;
+  if(label==='grace/scroll/12') result.legacySnippet=code.outerHTML;
  }
- samples.innerHTML=renderer.exportWechatArticle('## 微信代码显示\n\n```bash\n'+bash+'\n```\n\n参数 `batch_size`，参考 [官方文档](https://example.com/docs)。','technical','blue',{code_wrap:'wrap'});
+ samples.style.width='393px';samples.style.padding='16px';
+ samples.innerHTML=renderer.exportWechatArticle('## AITER 调优示例\n\n参考 [AITER 项目说明](https://github.com/ROCm/aiter/blob/main/README.md)、[官方调优脚本](https://github.com/ROCm/aiter/blob/main/.github/scripts/op_tune.sh)。\n\n```bash\n'+bash+'\n```\n\n代码 12px · 长命令自动换行 · 参数 `batch_size`','technical','blue',{code_wrap:'wrap',code_font_size:12});
 }catch(error){result.failures.push(error.stack||String(error));}
 document.body.dataset.results=JSON.stringify(result);
 report.textContent=(result.failures.length?'FAIL':'PASS')+' · '+result.checks+' checks\n'+result.failures.slice(0,15).join('\n');

@@ -28,7 +28,8 @@ class TypographyMetadataTests(unittest.TestCase):
         expected = {
             "font_family": "theme",
             "font_size": 17,
-            "code_wrap": "scroll",
+            "code_wrap": "wrap",
+            "code_font_size": 12,
             "table_mode": "auto",
             "caption_font_size": 12,
             "table_font_size": 13,
@@ -52,7 +53,8 @@ class TypographyMetadataTests(unittest.TestCase):
                 self.assertEqual(loaded["metadata"]["theme"], theme)
                 self.assertEqual(loaded["metadata"].get("font_family"), "theme")
                 self.assertEqual(loaded["metadata"].get("font_size"), 16)
-                self.assertEqual(loaded["metadata"].get("code_wrap"), "scroll")
+                self.assertEqual(loaded["metadata"].get("code_wrap"), "wrap")
+                self.assertEqual(loaded["metadata"].get("code_font_size"), 12)
                 self.assertEqual(loaded["metadata"].get("table_mode"), "auto")
                 self.assertEqual(loaded["metadata"].get("caption_font_size"), 13)
                 self.assertEqual(loaded["metadata"].get("table_font_size"), 16)
@@ -102,7 +104,7 @@ class TypographyMetadataTests(unittest.TestCase):
         changes = {
             "font_family": "sans",
             "font_size": 17,
-            "code_wrap": "wrap",
+            "code_wrap": "scroll",
             "table_mode": "cards",
         }
         for theme in ("grace", "default", "simple"):
@@ -161,8 +163,8 @@ class TypographyMetadataTests(unittest.TestCase):
             ("font_size", True, 17),
             ("font_size", 999, 17),
             ("font_size", {"value": 18}, 17),
-            ("code_wrap", "wrap; color:red", "scroll"),
-            ("code_wrap", ["wrap"], "scroll"),
+            ("code_wrap", "wrap; color:red", "wrap"),
+            ("code_wrap", ["wrap"], "wrap"),
             ("table_mode", "cards; position:fixed", "auto"),
             ("table_mode", {"mode": "scroll"}, "auto"),
             ("caption_font_size", 11, 12),
@@ -361,7 +363,7 @@ class TypographySyncTests(unittest.TestCase):
         options = (
             {"font_family": "sans"},
             {"font_size": 17},
-            {"code_wrap": "wrap"},
+            {"code_wrap": "scroll"},
             {"table_mode": "scroll"},
             {"caption_font_size": 14},
             {"caption_font_size": 12},
@@ -375,7 +377,7 @@ class TypographySyncTests(unittest.TestCase):
                 self.assert_no_remote_calls()
 
     def test_legacy_default_sync_can_omit_typography_and_records_effective_values(self) -> None:
-        self.save_options("grace")
+        self.save_options("grace", code_wrap="wrap")
 
         synced, created = self.sync("grace")
 
@@ -383,7 +385,8 @@ class TypographySyncTests(unittest.TestCase):
         self.assertEqual(synced["publish"].get("typography"), {
             "font_family": "theme",
             "font_size": 16,
-            "code_wrap": "scroll",
+            "code_wrap": "wrap",
+            "code_font_size": 12,
             "table_mode": "auto",
             "caption_font_size": 13,
             "table_font_size": 16,
@@ -480,7 +483,7 @@ class TypographySyncTests(unittest.TestCase):
                 synced, created = self.sync(theme, typography=typography)
 
                 self.assertEqual(created, index == 0)
-                self.assertEqual(synced["publish"].get("typography"), typography)
+                self.assertEqual(synced["publish"].get("typography"), {**typography, "code_font_size": 12})
                 self.assertEqual(synced["publish"]["theme"], theme)
                 self.assertEqual(synced["publish"]["draft_revision"], current["revision"])
                 self.assertEqual(synced["publish"]["publish_status"], "draft_synced")
@@ -490,7 +493,7 @@ class TypographySyncTests(unittest.TestCase):
         self.assertEqual(len(self.api.thumb_uploads), 1)
         self.assertIn("https://mmbiz.qpic.cn/test/image-1.png", self.api.added_articles[0]["content"])
 
-    def test_four_field_sync_is_compatible_with_default_new_sizes_and_records_all_six(self) -> None:
+    def test_four_field_sync_is_compatible_with_default_new_sizes_and_records_all_seven(self) -> None:
         for theme, size, caption, table in (("grace", 16, 13, 16), ("technical", 17, 12, 13), ("obsidian", 17, 12, 13)):
             with self.subTest(theme=theme):
                 self.save_options(theme)
@@ -501,7 +504,7 @@ class TypographySyncTests(unittest.TestCase):
                 synced, _ = self.sync(theme, typography=old_options)
 
                 self.assertEqual(synced["publish"].get("typography"), {
-                    **old_options, "caption_font_size": caption, "table_font_size": table,
+                    **old_options, "caption_font_size": caption, "table_font_size": table, "code_font_size": 12,
                 })
 
     def test_four_field_sync_is_rejected_with_409_when_either_new_size_is_custom(self) -> None:
@@ -530,14 +533,14 @@ class TypographySyncTests(unittest.TestCase):
 
         complete = {**old_options, "caption_font_size": 12, "table_font_size": 13}
         synced, _ = self.sync("grace", typography=complete)
-        self.assertEqual(synced["publish"]["typography"], complete)
+        self.assertEqual(synced["publish"]["typography"], {**complete, "code_font_size": 12})
         self.assertEqual(synced["publish"]["draft_revision"], changed["revision"])
 
         twelve = self.save_options("grace", caption_font_size=12, table_font_size=12)
         complete["table_font_size"] = 12
         synced, _ = self.sync("grace", typography=complete)
         self.assertNotEqual(twelve["revision"], baseline["revision"])
-        self.assertEqual(synced["publish"]["typography"], complete)
+        self.assertEqual(synced["publish"]["typography"], {**complete, "code_font_size": 12})
         self.assertEqual(synced["publish"]["draft_revision"], twelve["revision"])
 
 

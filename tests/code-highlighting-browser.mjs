@@ -44,7 +44,7 @@ try {
         check(!!publishedTitle&&Number(getComputedStyle(publishedTitle).fontWeight)>=600,theme+'/'+lang+' function names remain emphasized in publishing HTML');
       }
       check(new DOMParser().parseFromString(preview.html,'text/html').querySelector('pre code').textContent===code,theme+'/'+lang+' preview and export agree');
-      check(getComputedStyle(output).fontSize==='14px'&&getComputedStyle(pre).tabSize==='4',theme+'/'+lang+' readable code size and tabs');
+      check(getComputedStyle(output).fontSize==='12px'&&getComputedStyle(pre).tabSize==='4',theme+'/'+lang+' readable default code size and tabs');
       const bg=getComputedStyle(pre).backgroundColor;
       check(tokens.every(n=>contrast(getComputedStyle(n).color,bg)>=4.5),theme+'/'+lang+' every syntax token has at least 4.5:1 contrast');
       check(host.scrollWidth<=host.clientWidth+1,theme+'/'+lang+' stays within phone article');

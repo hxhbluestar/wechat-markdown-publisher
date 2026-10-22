@@ -49,7 +49,8 @@ export function typographyControlsMarkup() {
     <label>正文字号<select id="fontSizeSelect"><option value="15">15 px</option><option value="16">16 px</option><option value="17" selected>17 px</option><option value="18">18 px</option></select></label>
     <label>图片说明字号<select id="captionFontSizeSelect"><option value="12" selected>12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>
     <label>表格字号<select id="tableFontSizeSelect"><option value="12">12 px</option><option value="13" selected>13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>
-    <label>代码长行<select id="codeWrapSelect"><option value="scroll">横向滚动</option><option value="wrap">阅读换行</option></select></label>
+    <label>代码字号<select id="codeFontSizeSelect"><option value="12" selected>12 px</option><option value="14">14 px</option></select></label>
+    <label>代码长行<select id="codeWrapSelect"><option value="wrap" selected>阅读换行</option><option value="scroll">横向滚动</option></select></label>
     <label>表格呈现<select id="tableModeSelect"><option value="auto">自动适配</option><option value="scroll">保留横滑</option><option value="cards">分行卡片</option></select></label>
     <div class="device-preview-controls" aria-label="设备排版预览">
       <label>设备预览<select id="previewWidthSelect">${deviceOptionsMarkup()}</select></label>
@@ -62,7 +63,7 @@ export function typographyControlsMarkup() {
 }
 
 export function connectTypographyControls(container, onChange = () => {}) {
-  const ids = {font_family:'fontFamilySelect',font_size:'fontSizeSelect',caption_font_size:'captionFontSizeSelect',table_font_size:'tableFontSizeSelect',code_wrap:'codeWrapSelect',table_mode:'tableModeSelect'};
+  const ids = {font_family:'fontFamilySelect',font_size:'fontSizeSelect',caption_font_size:'captionFontSizeSelect',table_font_size:'tableFontSizeSelect',code_font_size:'codeFontSizeSelect',code_wrap:'codeWrapSelect',table_mode:'tableModeSelect'};
   const fields = Object.fromEntries(Object.entries(ids).map(([key,id]) => {
     const element=container.querySelector('#'+id);
     if (!element) throw new Error('Missing typography control: '+id);
@@ -138,7 +139,7 @@ export function connectTypographyControls(container, onChange = () => {}) {
   }
   function themeChanged(theme) {
     const profiles={
-      technical:{font_size:17,code_wrap:'scroll',table_mode:'auto'},
+      technical:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
       journal:{font_size:17,code_wrap:'wrap',table_mode:'cards'},
       minimal:{font_size:16,code_wrap:'wrap',table_mode:'auto'},
       obsidian:{font_size:17,code_wrap:'wrap',table_mode:'auto'},

@@ -42,11 +42,12 @@ LEGACY_THEMES = {"default", "grace", "simple"}
 ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal", "obsidian", "deepsea", "teal"}
 ALLOWED_PALETTES = {"warm", "wechat", "blue", "red", "violet", "ink"}
 BASE_TYPOGRAPHY_FIELDS = frozenset({"font_family", "font_size", "code_wrap", "table_mode"})
-TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 12, "table_font_size": 13}
-LEGACY_TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 13, "table_font_size": 16}
+TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 12, "table_font_size": 13, "code_font_size": 12}
+LEGACY_TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 13, "table_font_size": 16, "code_font_size": 12}
 TYPOGRAPHY_VALUES = {
     "font_family": {"theme", "sans", "serif"},
     "font_size": {15, 16, 17, 18},
+    "code_font_size": {12, 14},
     "code_wrap": {"scroll", "wrap"},
     "table_mode": {"auto", "scroll", "cards"},
     "caption_font_size": {12, 13, 14, 15, 16},
@@ -132,7 +133,7 @@ def default_typography(theme: str) -> dict[str, Any]:
     return {
         "font_family": "theme",
         "font_size": 16 if theme in LEGACY_THEMES else 17,
-        "code_wrap": "scroll",
+        "code_wrap": "wrap",
         "table_mode": "auto",
         **(LEGACY_TYPOGRAPHY_SIZE_DEFAULTS if theme in LEGACY_THEMES else TYPOGRAPHY_SIZE_DEFAULTS),
     }
@@ -847,6 +848,12 @@ class WechatPublisher:
                 if any(effective_typography[field] != default for field, default in size_defaults.items()):
                     raise RevisionConflict()
                 requested_typography = {**typography, **size_defaults}
+            elif fields == set(TYPOGRAPHY_VALUES) - {'code_font_size'}:
+                # The previous editor sent six typography fields. It can only
+                # describe the current draft while code uses the new default.
+                if effective_typography['code_font_size'] != typography_defaults['code_font_size']:
+                    raise RevisionConflict()
+                requested_typography = {**typography, 'code_font_size': typography_defaults['code_font_size']}
             elif fields == set(TYPOGRAPHY_VALUES):
                 requested_typography = typography
             else:

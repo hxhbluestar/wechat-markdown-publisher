@@ -25,7 +25,7 @@ try {
     check(publishedCodeText(doc.querySelector('pre code'))===python,'export '+theme+' preserves tabs/newlines/angle brackets/ampersands');
     check(!!doc.querySelector('pre code span[style*="color"]'),'export '+theme+' keeps syntax colors after class removal');
     check(!doc.querySelector('table') && doc.body.textContent.includes('第二行'),'export '+theme+' cards keep every table row');
-    check(!!doc.querySelector('strong') && !doc.querySelector('a[href^="https:"]') && doc.body.textContent.includes('链接（https://example.com/docs）'),'export '+theme+' preserves table emphasis and presents external links as full URL text');
+    check(!!doc.querySelector('strong') && !doc.querySelector('a[href^="https:"]') && doc.body.textContent.includes('链接[1]') && doc.querySelector('[data-wx-link-references]')?.textContent.includes('https://example.com/docs'),'export '+theme+' preserves table emphasis and moves full URLs to references');
     check(!exported.includes('var(--'),'export '+theme+' resolves CSS variables');
     check(!exported.includes('data-source-code='),'export '+theme+' removes temporary source metadata');
     const codeStyle=doc.querySelector('pre').getAttribute('style')||'';
@@ -104,7 +104,7 @@ try {
     host.style.width='272px';
     host.innerHTML=renderer.exportWechatArticle('## 标题\n\n### 小节\n\n[官方链接](https://rocm.blogs.amd.com/)\n\n> 分层引用内容\n\n<div class="admonition note"><p class="admonition-title">Note</p><p>保留 <strong>重点</strong> 与说明。</p></div>',theme,'blue',{font_size:17,code_wrap:'wrap',table_mode:'auto'});
     document.body.appendChild(host);
-    const external=[...host.querySelectorAll('span')].find(node=>node.textContent==='官方链接（https://rocm.blogs.amd.com/）');
+    const external=[...host.querySelectorAll('span')].find(node=>node.textContent==='官方链接[1]');
     check(external && getComputedStyle(external).color===blue,theme+' exported link text matches official ROCm accent');
     check(!host.querySelector('[class],script,style') && host.textContent.includes('重点'),theme+' raw Sphinx note survives class-free inline export');
     check(host.scrollWidth<=host.clientWidth,theme+' headings and notes fit the narrow article');

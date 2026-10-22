@@ -48,11 +48,11 @@ function resolvedRule(css, element, property) {
 }
 
 test('only safe typography options survive normalization and legacy gets its original size', () => {
-  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_font_size:12, code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
   for (const theme of ['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']) assert.equal(normalizeTypography(null, theme).font_size, 17);
   for (const theme of ['default', 'grace', 'simple', 'classic']) assert.equal(normalizeTypography({}, theme).font_size, 16);
-  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_wrap: 'wrap', table_mode: 'cards', caption_font_size: 12, table_font_size: 13 });
-  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_wrap: 'scroll', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_font_size:12, code_wrap: 'wrap', table_mode: 'cards', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_font_size:12, code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
   assert.equal(normalizeTypography({ font_size: true }).font_size, 17);
 });
 
@@ -210,7 +210,7 @@ test('changing legacy font size keeps its theme font and normalizes code to orig
   assert.equal(computedRule(css, '#output .wx-typography', 'font-family'), undefined);
   assert.equal(computedRule(css, '#output .wx-typography p', 'font-size'), '18px');
   assert.equal(holder.querySelector('pre code').textContent, 'x\ny');
-  assert.equal(holder.querySelectorAll('.wx-code-caption').length, 0);
+  assert.equal(holder.querySelectorAll('.wx-code-caption').length, 1);
 });
 
 test('theme and explicit font controls yield system fallback fonts and readable CJK styles', () => {
@@ -312,7 +312,7 @@ test('legacy transformed code regains newlines, indentation and escaped text wit
   assert.equal(holder.querySelectorAll('.mac-sign,script,button,code ok').length, 0);
   assert.ok(code.querySelector('.hljs-keyword'));
   assert.match(computedRule(css, '#output .wx-typography .hljs-keyword', 'color'), /^#[0-9a-f]{6}$/i);
-  assert.equal(computedRule(css, '#output .wx-typography .wx-code-text', 'white-space'), 'pre');
+  assert.equal(computedRule(css, '#output .wx-typography .wx-code-text', 'white-space'), 'pre-wrap');
 });
 
 test('pending unknown code preserves available raw tabs and cannot turn HTML into elements', () => {
@@ -470,14 +470,16 @@ test('table size controls cover cells, cards and nested text at the chosen minim
   assert.equal(computedRule(minimum.css, '#output .wx-typography td code', 'font-size'), '12px');
 });
 
-test('table code blocks and language captions obey the table minimum after CSS specificity', () => {
+test('table text keeps its minimum while code blocks have independent publishing sizes', () => {
   const html = '<table><tr><th>代码</th><th>结束</th></tr><tr><td><pre><code class="language-python">return 42</code></pre></td><td>LAST</td></tr></table>';
   for (const table_mode of ['auto', 'scroll', 'cards']) {
     for (const size of [12, 16]) {
       const result = render(html, { table_mode, table_font_size: size });
       for (const element of result.holder.querySelectorAll('th,td,th *,td *,.wx-table-key,.wx-table-value,.wx-table-value *')) {
+        if(element.closest('.wx-code-block')) continue;
         assert.ok(Number.parseFloat(resolvedRule(result.css, element, 'font-size')) >= size, `${table_mode}/${size}: ${element.tagName}.${element.className} uses ${resolvedRule(result.css, element, 'font-size')}`);
       }
+      assert.equal(computedRule(result.css,'#output .wx-typography .wx-code-pre','font-size'),'12px');
     }
   }
 });

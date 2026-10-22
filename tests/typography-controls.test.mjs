@@ -31,9 +31,32 @@ test('four distinct templates are offered and a saved older template remains loa
 
 test('typography controls offer fonts, size, code wrapping, tables and phone widths', () => {
   const {document} = parseHTML(`<main>${typographyControlsMarkup()}</main>`);
-  for (const id of ['fontFamilySelect','fontSizeSelect','captionFontSizeSelect','tableFontSizeSelect','codeWrapSelect','tableModeSelect','previewWidthSelect']) {
+  for (const id of ['fontFamilySelect','fontSizeSelect','captionFontSizeSelect','tableFontSizeSelect','codeFontSizeSelect','codeWrapSelect','tableModeSelect','previewWidthSelect']) {
     assert.ok(document.getElementById(id), `Missing usable control: ${id}`);
   }
+});
+
+test('code size can be changed to 12 or 14 and restored independently with its saved long-line mode',()=>{
+  const {document,Event}=parseHTML(`<main>${typographyControlsMarkup()}</main>`);
+  const changes=[];
+  const controls=connectTypographyControls(document,values=>changes.push(values));
+  const size=document.querySelector('#codeFontSizeSelect');
+  assert.ok(size,'Code size is an editable article setting');
+  assert.deepEqual([...size.options].map(option=>option.value),['12','14']);
+  controls.load({theme:'technical',code_font_size:14,code_wrap:'scroll'});
+  assert.equal(controls.read().code_font_size,14);
+  assert.equal(controls.read().code_wrap,'scroll');
+  for(const option of size.options)option.selected=option.value==='12';
+  size.dispatchEvent(new Event('change'));
+  assert.equal(changes[0].code_font_size,12);
+  assert.equal(changes[0].code_wrap,'scroll');
+  controls.load({theme:'technical'});
+  assert.equal(controls.read().code_font_size,12);
+  assert.equal(controls.read().code_wrap,'wrap');
+  controls.themeChanged('technical');
+  assert.equal(controls.read().code_font_size,12);
+  assert.equal(controls.read().code_wrap,'wrap');
+  assert.equal(changes.length,1,'Loading another article does not mark it dirty');
 });
 
 test('local code highlighter recognizes PowerShell in addition to technical languages', () => {
@@ -45,12 +68,12 @@ test('local code highlighter recognizes PowerShell in addition to technical lang
   for (const name of ['python','bash','powershell','cpp','yaml','sql','diff']) assert.ok(highlighter.getLanguage(name),name);
 });
 
-test('loading a saved style preserves six independent publishing settings including 12px details', () => {
+test('loading a saved style preserves seven independent publishing settings including 12px details', () => {
   const {document} = parseHTML(`<main>${typographyControlsMarkup()}</main>`);
   const changes=[];
   const controls=connectTypographyControls(document,values=>changes.push(values));
   controls.load({theme:'journal',font_family:'serif',font_size:18,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
-  assert.deepEqual(controls.read('journal'),{font_family:'serif',font_size:18,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
+  assert.deepEqual(controls.read('journal'),{font_family:'serif',font_size:18,code_font_size:12,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
   assert.equal(changes.length,0,'Loading must not mark the article dirty');
 });
 
@@ -59,9 +82,9 @@ test('selecting a technical style applies its profile without retaining the old 
   const controls=connectTypographyControls(document,()=>{});
   controls.load({theme:'grace',font_size:16,font_family:'sans'});
   controls.themeChanged('journal');
-  assert.deepEqual(controls.read('journal'),{font_family:'theme',font_size:17,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:13});
+  assert.deepEqual(controls.read('journal'),{font_family:'theme',font_size:17,code_font_size:12,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:13});
   controls.themeChanged('minimal');
-  assert.deepEqual(controls.read('minimal'),{font_family:'theme',font_size:16,code_wrap:'wrap',table_mode:'auto',caption_font_size:12,table_font_size:13});
+  assert.deepEqual(controls.read('minimal'),{font_family:'theme',font_size:16,code_font_size:12,code_wrap:'wrap',table_mode:'auto',caption_font_size:12,table_font_size:13});
 });
 
 test('laboratory themes use readable defaults and changing a detail size marks the draft dirty', () => {
