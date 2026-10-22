@@ -414,6 +414,12 @@ class SyncWorkflow:
             if payload.get('theme') != metadata['theme'] or payload.get('palette') != metadata['palette']:
                 raise RevisionConflict()
             typography = payload.get('typography')
+            if isinstance(typography, dict) and set(typography) == set(TYPOGRAPHY_VALUES) - {'code_theme'}:
+                # The prior editor sent seven settings. It can only describe
+                # an article whose code theme still follows its layout.
+                if metadata['code_theme'] != 'auto':
+                    raise RevisionConflict()
+                typography = {**typography, 'code_theme': 'auto'}
             if not isinstance(typography, dict) or set(typography) != set(TYPOGRAPHY_VALUES):
                 raise EditorError('同步排版选项不完整')
             if any(type(typography[key]) is not type(metadata[key]) or typography[key] != metadata[key] for key in TYPOGRAPHY_VALUES):

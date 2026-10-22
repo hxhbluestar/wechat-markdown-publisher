@@ -1,8 +1,9 @@
+import {CODE_FONT,normalizeCodeTheme,codeTheme,codeThemeCSS} from './code-themes.mjs';
 import {prepareArticleSpacing,articleSpacingCSS} from './article-spacing.mjs';
-const NEW_THEMES = new Set(['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']);
+const NEW_THEMES = new Set(['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal', 'nord', 'dracula', 'latte']);
 const SANS = '"mp-quote","PingFang SC",system-ui,-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans GB","Microsoft YaHei UI","Microsoft YaHei",Arial,sans-serif';
 const SERIF = '"Songti SC","STSong","Noto Serif CJK SC","SimSun",serif';
-const MONO = '"Cascadia Code","JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace';
+const MONO = CODE_FONT;
 
 /** Persist a small, validated set of controls; never accept raw CSS from settings. */
 export function normalizeTypography(settings, theme = 'technical') {
@@ -16,6 +17,7 @@ export function normalizeTypography(settings, theme = 'technical') {
     font_family: ['theme', 'sans', 'serif'].includes(input.font_family) ? input.font_family : 'theme',
     font_size: [15, 16, 17, 18].includes(size) ? size : NEW_THEMES.has(theme) ? 17 : 16,
     code_font_size: [12,14].includes(typeof input.code_font_size==='number'||typeof input.code_font_size==='string'?Number(input.code_font_size):NaN) ? Number(input.code_font_size) : 12,
+    code_theme: normalizeCodeTheme(input.code_theme),
     code_wrap: ['scroll', 'wrap'].includes(input.code_wrap) ? input.code_wrap : 'wrap',
     table_mode: ['auto', 'scroll', 'cards'].includes(input.table_mode) ? input.table_mode : 'auto',
     caption_font_size: smallSize(input.caption_font_size, NEW_THEMES.has(theme) ? 12 : 13),
@@ -25,52 +27,14 @@ export function normalizeTypography(settings, theme = 'technical') {
 
 const THEMES = {
   technical: { paper: '#ffffff', ink: '#263342', secondary: '#657284', accent: '#0051c6', rule: '#e1e7ec', tint: '#eff6ff', code: '#142236', codeInk: '#e2eaf5', codeRule: '#41536b', label: '#a9c0dc' },
-  journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#7c7061', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451' },
+  journal: { paper: '#fffdf8', ink: '#3e382e', secondary: '#6e6253', accent: '#8b563b', rule: '#e4ddd0', tint: '#f5f0e6', code: '#f5f0e6', codeInk: '#443b31', codeRule: '#e0d7c8', label: '#706451' },
   minimal: { paper: '#ffffff', ink: '#25272b', secondary: '#666b73', accent: '#3c4653', rule: '#dfe2e7', tint: '#f2f4f6', code: '#f2f4f6', codeInk: '#313b48', codeRule: '#dce1e8', label: '#657082' },
   obsidian: { dark: true, darkCode: true, paper: '#111b22', ink: '#e6edf3', secondary: '#abbcc6', accent: '#69d7c1', rule: '#344b58', tint: '#1c313b', code: '#0b141c', codeInk: '#e5eff5', codeRule: '#2b424f', label: '#b3c8d5' },
   deepsea: { darkCode: true, paper: '#f1f8f8', ink: '#15383d', secondary: '#4c6c73', accent: '#136b76', rule: '#cbdfe1', tint: '#e3f1f0', code: '#102e35', codeInk: '#e4f2f0', codeRule: '#2b4d55', label: '#aed1d1' },
   teal: { paper: '#ffffff', ink: '#183b36', secondary: '#55736b', accent: '#13745d', rule: '#cce0d9', tint: '#edf7f2', code: '#e9f5ef', codeInk: '#1d4237', codeRule: '#c3ded0', label: '#4b6f60' },
-};
-
-// Semantic syntax colors are independent of article accents. Keep hue roles
-// consistent between papers, with separate values for dark and light code.
-const CODE_COLORS = {
-  technical: {
-    keyword: '#c792ff', decorator: '#ff91c6', string: '#a1e0b0',
-    number: '#ffb78a', literal: '#ff9a99', type: '#f1d887',
-    fn: '#8fc7ff', api: '#6edbd5', variable: '#becbff', attribute: '#e8c790',
-    operator: '#adbed6', comment: '#95a7c0', addition: '#b4e5c5', deletion: '#ffb3b8',
-  },
-  journal: {
-    keyword: '#7441a8', decorator: '#a12a78', string: '#28613b',
-    number: '#a24817', literal: '#a33248', type: '#805b09',
-    fn: '#165caa', api: '#006b67', variable: '#4e59a0', attribute: '#855918',
-    operator: '#596678', comment: '#716b61', addition: '#27633f', deletion: '#a33e3e',
-  },
-  minimal: {
-    keyword: '#6f42a3', decorator: '#a12f7e', string: '#276c42',
-    number: '#a24b1e', literal: '#ab364e', type: '#7a5a09',
-    fn: '#1d5ca8', api: '#006d70', variable: '#5356a0', attribute: '#875826',
-    operator: '#526275', comment: '#626c78', addition: '#27633f', deletion: '#a33e3e',
-  },
-  obsidian: {
-    keyword: '#c7a1ff', decorator: '#ff99cd', string: '#9fdfb8',
-    number: '#ffbc94', literal: '#ffaaaa', type: '#edda98',
-    fn: '#9dccff', api: '#72ddd0', variable: '#b4c9ff', attribute: '#e4c79a',
-    operator: '#b8c8d5', comment: '#a1b3c2', addition: '#b4e5c5', deletion: '#ffb9c0',
-  },
-  deepsea: {
-    keyword: '#d2b6ff', decorator: '#ffa4ce', string: '#a8e7af',
-    number: '#ffc493', literal: '#ffb1b4', type: '#f4df91',
-    fn: '#a4d3ff', api: '#82e4d8', variable: '#c5ceff', attribute: '#e9d09a',
-    operator: '#b4cbd2', comment: '#a2bec3', addition: '#ace1c2', deletion: '#ffbac0',
-  },
-  teal: {
-    keyword: '#7041a0', decorator: '#9e2c79', string: '#24623d',
-    number: '#954719', literal: '#a3314c', type: '#775609',
-    fn: '#205ba0', api: '#00696a', variable: '#505899', attribute: '#805528',
-    operator: '#4f6570', comment: '#526e63', addition: '#236442', deletion: '#9a3c42',
-  },
+  nord: { paper:'#eceff4', ink:'#2e3440', secondary:'#4c566a', accent:'#386680', rule:'#c5d1df', tint:'#e3edf3', panel:'#e5e9f0', complement:'#74536f', emphasis:'#386680' },
+  dracula: { dark:true, paper:'#282a36', ink:'#f8f8f2', secondary:'#c5c8de', accent:'#bd93f9', rule:'#4b4e68', tint:'#353549', panel:'#343746', complement:'#8be9fd', emphasis:'#ff79c6' },
+  latte: { paper:'#eff1f5', ink:'#4c4f69', secondary:'#5c5f77', accent:'#8c3d70', rule:'#d8cbd6', tint:'#f6e7ee', panel:'#f4e8e1', complement:'#7541a0', emphasis:'#8c3d70' },
 };
 
 // Paper and syntax palettes belong to the layout; the user's color selection
@@ -92,14 +56,20 @@ const DARK_PALETTES = {
   ink: { accent: '#ead09a', accentLine: '#d2b376', tint: '#343025' },
 };
 
+// Light Nord/Latte papers need a deeper green than the white-paper palette.
+const SOFT_PAPER_PALETTES={...PALETTES,wechat:{accent:'#056f36',accentLine:'#078340',tint:'#e8f3ec'}};
+function articlePalettes(theme) {
+  return THEMES[theme].dark?DARK_PALETTES:['nord','latte'].includes(theme)?SOFT_PAPER_PALETTES:PALETTES;
+}
+
 export function typographyAccent(theme, palette) {
   if (!NEW_THEMES.has(theme)) return null;
-  const colors = THEMES[theme].dark ? DARK_PALETTES : PALETTES;
+  const colors = articlePalettes(theme);
   return (Object.hasOwn(colors,palette) ? colors[palette].accent : null) || THEMES[theme].accent;
 }
 
-export function typographyCodeColors(theme) {
-  return {...(CODE_COLORS[theme] || CODE_COLORS.minimal)};
+export function typographyCodeColors(theme,requested='auto') {
+  return {...codeTheme(theme,requested).tokens};
 }
 
 export function escapeHtmlAttribute(value) {
@@ -125,6 +95,9 @@ function typographyCSS(settings, theme, fresh, palette) {
     if (Object.keys(fontRule).length) css += rule('h1,h2,h3,h4,h5,h6,blockquote', fontRule);
   }
   if (!fresh) {
+    // Old layouts use intrinsic table-sized headings and translucent cell
+    // colors. Keep their accents, but make both safe on narrow WeChat pages.
+    css += rule('h1,h2,h3,h4,h5,h6', { display:'block', width:'auto', 'max-width':'100%', 'box-sizing':'border-box', 'white-space':'normal', 'overflow-wrap':'anywhere', 'word-break':'normal', 'line-height':'1.6' });
     if (wrap) {
       css += rule('pre,pre code,.wx-code-pre,.wx-code-text', { 'white-space': 'pre-wrap', 'overflow-wrap': 'anywhere', 'word-break': 'normal', 'max-width': '100%' });
       // Legacy themes use a horizontal -webkit-box with its own scroll area.
@@ -133,13 +106,16 @@ function typographyCSS(settings, theme, fresh, palette) {
       css += rule('.wx-code-pre,.wx-code-text', { display: 'block', 'box-sizing': 'border-box', width: 'auto', 'min-width': '0', 'max-width': '100%', 'overflow-x': 'hidden' });
     }
     css += settings.table_mode === 'auto' ? tableLayoutCSS() : tableCSS(THEMES.minimal);
+    const headerColor = Object.hasOwn(PALETTES,palette) ? PALETTES[palette].accent : '#9f5538';
+    css += rule('thead,th', { color:'#ffffff', background:headerColor });
+    css += rule('th *', { color:'inherit', background:'transparent' });
     css += smallTextCSS(settings, false);
-    css += publishingCodeCSS(settings,THEMES.minimal);
+    css += codeThemeCSS(settings,theme,rule);
     return css;
   }
-  const palettes = THEMES[theme].dark ? DARK_PALETTES : PALETTES;
+  const palettes = articlePalettes(theme);
   const selected = Object.hasOwn(palettes, palette) ? palettes[palette] : null;
-  const c = { ...THEMES[theme], ...CODE_COLORS[theme], ...selected };
+  const c = { ...THEMES[theme], ...selected };
   const accentLine = c.accentLine || c.accent;
   const headingLine = selected ? accentLine : c.rule;
   css += rule('', { color: c.ink, background: c.paper, padding: c.dark ? '18px 16px' : '8px 0', 'max-width': '100%', 'box-sizing': 'border-box' });
@@ -167,47 +143,66 @@ function typographyCSS(settings, theme, fresh, palette) {
   css += rule('.wx-alert-warning,.wx-alert-caution', { 'border-left': `3px solid ${c.dark ? '#be8a4d' : '#a55e25'}` });
   css += rule('.wx-alert-warning .wx-alert-title,.wx-alert-caution .wx-alert-title', { color: c.dark ? '#efbd7a' : '#97511f' });
   css += rule('.wx-alert-title svg', { display: 'none' });
-  const tokenGroups = [
-    ['.hljs-comment,.hljs-quote', c.comment],
-    ['.hljs-keyword,.hljs-doctag,.hljs-formula,.hljs-selector-tag', c.keyword],
-    ['.hljs-meta', c.decorator],
-    ['.hljs-string,.hljs-regexp,.hljs-meta .hljs-string', c.string],
-    ['.hljs-number,.hljs-symbol,.hljs-bullet', c.number],
-    ['.hljs-literal', c.literal],
-    ['.hljs-title,.hljs-section,.hljs-name,.hljs-selector-id,.hljs-selector-class,.hljs-link', c.fn],
-    ['.hljs-type,.hljs-title.class_', c.type],
-    ['.hljs-built_in', c.api],
-    ['.hljs-attr,.hljs-attribute', c.attribute],
-    ['.hljs-variable,.hljs-template-variable,.hljs-params', c.variable],
-    ['.hljs-subst', c.codeInk],
-    ['.hljs-operator,.hljs-punctuation', c.operator],
-    ['.hljs-addition', c.addition], ['.hljs-deletion', c.deletion],
-  ];
-  for (const [tokens, color] of tokenGroups) css += rule(tokens, { color });
-  css += rule('.hljs-title.function_,.hljs-function .hljs-title', { 'font-weight': '600' });
-  css += rule('.hljs-comment,.hljs-quote', { 'font-style': 'normal' });
-  css += rule('.hljs-emphasis', { 'font-style': 'italic' });
-  css += rule('.hljs-strong', { 'font-weight': '700' });
-  css += rule('.hljs-addition', { background: theme === 'technical' || c.darkCode ? '#203b39' : '#e6f0e7' });
-  css += rule('.hljs-deletion', { background: theme === 'technical' || c.darkCode ? '#442d3b' : '#f8e9e7' });
   css += tableCSS(c);
   css += rule('hr', { border: '0', 'border-top': `1px solid ${c.rule}`, margin: '28px 0', height: '0', background: 'transparent' });
   css += rule('img', { 'max-width': '100%', height: 'auto' });
   css += rule('figcaption', { color: c.secondary, 'font-size': '12px', 'line-height': '1.75', 'text-align': 'center', margin: '9px 0 18px' });
   if (theme === 'technical') css += technicalCSS(c, accentLine);
   css += laboratoryCSS(theme, c, accentLine);
+  css += expressiveArticleCSS(theme,c,accentLine);
   css += smallTextCSS(settings, true);
-  css += publishingCodeCSS(settings,c);
+  css += codeThemeCSS(settings,theme,rule);
   css += articleSpacingCSS(rule);
   return css;
 }
 
-function publishingCodeCSS(settings,c) {
-  const wrap=settings.code_wrap==='wrap';
-  return rule('.wx-code-block',{margin:'20px 0',padding:'0',background:c.code,color:c.codeInk,border:`1px solid ${c.codeRule}`,'border-radius':'7px',overflow:'hidden','max-width':'100%','box-sizing':'border-box'})+
-    rule('.wx-code-caption',{display:'block',margin:'0',padding:'9px 14px',color:c.label,background:c.code,border:'0','font-family':MONO,'font-size':'12px','font-weight':'500','line-height':'1.5','text-align':'left','box-sizing':'border-box'})+
-    rule('.wx-code-pre',{display:'block',margin:'0',padding:'13px 14px 15px',background:c.code,color:c.codeInk,border:'0','border-top':`1px solid ${c.codeRule}`,'border-radius':'0','box-shadow':'none','box-sizing':'border-box',width:'auto','min-width':'0','max-width':'100%','overflow-x':wrap?'hidden':'auto','overflow-y':'hidden','font-family':MONO,'font-size':settings.code_font_size+'px','line-height':'1.75','text-align':'left','white-space':wrap?'pre-wrap':'pre','overflow-wrap':wrap?'anywhere':'normal','word-break':'normal','tab-size':'4'})+
-    rule('.wx-code-text',{display:'block',margin:'0',padding:'0',background:'transparent',color:c.codeInk,border:'0','border-radius':'0','font-family':MONO,'font-size':settings.code_font_size+'px','line-height':'1.75','letter-spacing':'0','font-variant-ligatures':'none','white-space':wrap?'pre-wrap':'pre','overflow-wrap':wrap?'anywhere':'normal','word-break':'normal','tab-size':'4','text-shadow':'none'});
+// Nord Frost, Dracula and Catppuccin Latte supply a small coordinated palette.
+// Darkened light-paper accents keep small labels readable. Real colored boxes
+// and borders survive export without pseudo-elements, gradients or web fonts.
+function expressiveArticleCSS(theme,c,accent) {
+  if(!['nord','dracula','latte'].includes(theme))return '';
+  const nord=theme==='nord',dark=theme==='dracula';
+  const callouts=dark?{
+    note:['#263e48','#8be9fd'],tip:['#2a423b','#a6e3a1'],important:['#3b324b','#d0b7ff'],warning:['#493c32','#ffb86c'],caution:['#492f41','#ff79c6'],
+  }:nord?{
+    note:['#e1efed','#245e60'],tip:['#e4efdf','#3d6331'],important:['#eee6f1','#74536f'],warning:['#f4eddf','#7a551d'],caution:['#f7e7eb','#8e3e50'],
+  }:{
+    note:['#e3edeb','#28605c'],tip:['#e8efdf','#466129'],important:['#eee5f5','#7541a0'],warning:['#f6eadb','#86501d'],caution:['#f6e4e9','#9a3658'],
+  };
+  let css=rule('h1',{
+    color:c.ink,background:c.panel,padding:nord?'18px 20px':'18px',
+    'font-size':'27px','font-weight':'750','letter-spacing':'0',
+    'border-left':nord?`5px solid ${accent}`:'0',
+    'border-top':dark?`3px solid ${accent}`:nord?'0':'2px solid #b65e2f',
+    'border-bottom':nord||dark?`1px solid ${c.rule}`:'0','border-radius':nord?'0 8px 8px 0':'8px',
+  })+rule('h2',{
+    color:c.accent,background:c.tint,padding:nord?'11px 14px':'12px 14px','font-size':'20px',
+    'border-left':nord||dark?`${nord?4:3}px solid ${accent}`:'0','border-top':'0',
+    'border-bottom':nord?'0':dark?`1px solid ${c.rule}`:`2px solid ${accent}`,
+    'border-radius':nord?'0 7px 7px 0':dark?'6px':'6px 6px 0 0',
+  })+rule('h3',{
+    color:c.complement,'font-size':'18px',padding:dark?'0 0 0 10px':'0 0 7px',
+    'border-left':dark?`2px solid ${c.complement}`:'0','border-bottom':dark?'0':`1px solid ${c.rule}`,
+  })+rule('h4,h5,h6',{color:dark?'#ff79c6':nord?'#2f6461':'#954b20','font-size':'17px'})+
+    rule('h1 strong,h2 strong,h3 strong,h4 strong,h5 strong,h6 strong',{color:'inherit'})+
+    rule('strong',{color:c.emphasis,'font-weight':'700'})+
+    rule('blockquote',{background:c.tint,color:c.secondary,padding:'15px 17px','border-left':`3px solid ${accent}`,'border-radius':dark?'0 7px 7px 0':'5px'})+
+    rule('blockquote p',{color:c.secondary})+
+    rule('.wx-alert',{background:c.tint,color:c.ink,padding:'15px 16px','border-left':`3px solid ${accent}`,'border-radius':'6px'})+
+    rule('.wx-alert p',{color:c.ink})+
+    rule('thead,th',{background:c.dark?c.tint:c.accent,color:c.dark?c.accent:'#ffffff'})+
+    rule('th strong,th em,th a,th p,th > span,th code',{color:'inherit'})+
+    rule('th code',{background:'transparent'})+
+    rule('.wx-table-card',{'border-top':`3px solid ${accent}`,'border-radius':'6px'})+
+    rule('.wx-table-key',{color:c.complement})+
+    rule('img',{'border-radius':'7px',border:`1px solid ${c.rule}`,'box-sizing':'border-box'})+
+    rule('figcaption,.md-figcaption',{color:c.secondary,'font-style':'normal','font-family':SANS,'text-align':'center'})+
+    rule('figcaption strong,.md-figcaption strong',{color:'inherit'});
+  for(const [kind,[background,color]] of Object.entries(callouts)) {
+    css+=rule('.wx-alert-'+kind,{background,'border-left':`3px solid ${color}`})+
+      rule('.wx-alert-'+kind+' .wx-alert-title',{color});
+  }
+  return css;
 }
 
 function technicalCSS(c, accent) {
@@ -319,7 +314,7 @@ function codeSource(code, language) {
   return text;
 }
 
-const LANGUAGE_LABELS = { plaintext: '纯文本', text: '纯文本', txt: '纯文本', python: 'Python', py: 'Python', javascript: 'JavaScript', js: 'JavaScript', typescript: 'TypeScript', ts: 'TypeScript', powershell: 'PowerShell', ps1: 'PowerShell', bash: 'Bash', sh: 'Shell', shell: 'Shell', shellsession: 'Shell', console: 'Shell', c: 'C', cpp: 'C++', 'c++': 'C++', csharp: 'C#', cs: 'C#', java: 'Java', json: 'JSON', yaml: 'YAML', yml: 'YAML', xml: 'XML', html: 'HTML', css: 'CSS', sql: 'SQL', diff: 'Diff', go: 'Go', rust: 'Rust', rs: 'Rust', ruby: 'Ruby', rb: 'Ruby', ini: 'INI', markdown: 'Markdown', md: 'Markdown', dockerfile: 'Dockerfile', docker: 'Dockerfile' };
+const LANGUAGE_LABELS = { plaintext: '纯文本', plain: '纯文本', text: '纯文本', txt: '纯文本', csv:'CSV', tsv:'TSV', python: 'Python', py: 'Python', javascript: 'JavaScript', js: 'JavaScript', typescript: 'TypeScript', ts: 'TypeScript', powershell: 'PowerShell', ps1: 'PowerShell', bash: 'Bash', sh: 'Shell', shell: 'Shell', shellsession: 'Shell', console: 'Shell', c: 'C', cpp: 'C++', 'c++': 'C++', csharp: 'C#', cs: 'C#', java: 'Java', json: 'JSON', yaml: 'YAML', yml: 'YAML', xml: 'XML', html: 'HTML', css: 'CSS', sql: 'SQL', diff: 'Diff', go: 'Go', rust: 'Rust', rs: 'Rust', ruby: 'Ruby', rb: 'Ruby', ini: 'INI', markdown: 'Markdown', md: 'Markdown', dockerfile: 'Dockerfile', docker: 'Dockerfile' };
 Object.assign(LANGUAGE_LABELS, {
   'ai-python': 'Python', python3: 'Python', py3: 'Python', pytorch: 'PyTorch · Python', torch: 'PyTorch · Python',
   tilelang: 'TileLang', 'tile-lang': 'TileLang', tile_lang: 'TileLang', triton: 'Triton',
@@ -375,7 +370,10 @@ function prepareCode(root, document, highlighter, fresh) {
       for (const prior of [...block.querySelectorAll('.wx-code-caption')]) prior.remove();
       const caption = document.createElement('section');
       caption.className = 'wx-code-caption';
-      caption.textContent = languageLabel(language);
+      const label=document.createElement('span');
+      label.className='wx-code-language';
+      label.textContent=languageLabel(language);
+      caption.append(label);
       block.insertBefore(caption, pre);
     }
   }

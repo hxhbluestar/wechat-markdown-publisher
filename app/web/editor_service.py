@@ -39,7 +39,7 @@ LOCAL_IMAGE_SRC = re.compile(
 FORBIDDEN_HTML = re.compile(r"<(?:script|iframe|object|embed|form)\b", re.I)
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 LEGACY_THEMES = {"default", "grace", "simple"}
-ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal", "obsidian", "deepsea", "teal"}
+ALLOWED_THEMES = LEGACY_THEMES | {"technical", "journal", "minimal", "obsidian", "deepsea", "teal", "nord", "dracula", "latte"}
 ALLOWED_PALETTES = {"warm", "wechat", "blue", "red", "violet", "ink"}
 BASE_TYPOGRAPHY_FIELDS = frozenset({"font_family", "font_size", "code_wrap", "table_mode"})
 TYPOGRAPHY_SIZE_DEFAULTS = {"caption_font_size": 12, "table_font_size": 13, "code_font_size": 12}
@@ -48,6 +48,7 @@ TYPOGRAPHY_VALUES = {
     "font_family": {"theme", "sans", "serif"},
     "font_size": {15, 16, 17, 18},
     "code_font_size": {12, 14},
+    "code_theme": {"auto", "vscode", "github", "catppuccin"},
     "code_wrap": {"scroll", "wrap"},
     "table_mode": {"auto", "scroll", "cards"},
     "caption_font_size": {12, 13, 14, 15, 16},
@@ -134,6 +135,7 @@ def default_typography(theme: str) -> dict[str, Any]:
         "font_family": "theme",
         "font_size": 16 if theme in LEGACY_THEMES else 17,
         "code_wrap": "wrap",
+        "code_theme": "auto",
         "table_mode": "auto",
         **(LEGACY_TYPOGRAPHY_SIZE_DEFAULTS if theme in LEGACY_THEMES else TYPOGRAPHY_SIZE_DEFAULTS),
     }
@@ -238,6 +240,10 @@ class DraftStore:
         for field in TYPOGRAPHY_SIZE_DEFAULTS:
             if metadata.get(field) == defaults[field]:
                 revision_metadata.pop(field, None)
+        # A missing code theme is the historical "follow article layout"
+        # setting. Loading existing drafts must not invalidate their revisions.
+        if metadata.get('code_theme', 'auto') == 'auto':
+            revision_metadata.pop('code_theme', None)
         if theme in LEGACY_THEMES and all(
             metadata.get(field) == value
             for field, value in defaults.items()
@@ -845,15 +851,19 @@ class WechatPublisher:
             fields = set(typography)
             if fields == BASE_TYPOGRAPHY_FIELDS:
                 size_defaults = {field: typography_defaults[field] for field in TYPOGRAPHY_SIZE_DEFAULTS}
-                if any(effective_typography[field] != default for field, default in size_defaults.items()):
+                if effective_typography['code_theme'] != 'auto' or any(effective_typography[field] != default for field, default in size_defaults.items()):
                     raise RevisionConflict()
-                requested_typography = {**typography, **size_defaults}
-            elif fields == set(TYPOGRAPHY_VALUES) - {'code_font_size'}:
+                requested_typography = {**typography, **size_defaults, 'code_theme': 'auto'}
+            elif fields == set(TYPOGRAPHY_VALUES) - {'code_font_size', 'code_theme'}:
                 # The previous editor sent six typography fields. It can only
                 # describe the current draft while code uses the new default.
-                if effective_typography['code_font_size'] != typography_defaults['code_font_size']:
+                if effective_typography['code_theme'] != 'auto' or effective_typography['code_font_size'] != typography_defaults['code_font_size']:
                     raise RevisionConflict()
-                requested_typography = {**typography, 'code_font_size': typography_defaults['code_font_size']}
+                requested_typography = {**typography, 'code_font_size': typography_defaults['code_font_size'], 'code_theme': 'auto'}
+            elif fields == set(TYPOGRAPHY_VALUES) - {'code_theme'}:
+                if effective_typography['code_theme'] != 'auto':
+                    raise RevisionConflict()
+                requested_typography = {**typography, 'code_theme': 'auto'}
             elif fields == set(TYPOGRAPHY_VALUES):
                 requested_typography = typography
             else:

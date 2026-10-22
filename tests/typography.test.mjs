@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 import { normalizeTypography, prepareTypography } from '../frontend/typography.mjs';
+import {codeTheme} from '../frontend/code-themes.mjs';
 
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(new URL('../app/web/highlight.min.js', import.meta.url), 'utf8'), context);
@@ -28,6 +29,23 @@ function computedRule(css, selector, property) {
   return value;
 }
 
+test('saved legacy layouts wrap long headings and use readable opaque table headers', () => {
+  const html = '<h2>ROCmGraphCompilerKernelConfigurationCrossPlatform</h2><table><tr><th><strong>参数</strong></th></tr><tr><td>保留值</td></tr></table>';
+  for (const theme of ['grace', 'default', 'simple']) {
+    for (const palette of ['warm', 'blue', 'wechat', 'red', 'violet', 'ink']) {
+      const {css, holder} = render(html, {theme, palette});
+      const h2 = holder.querySelector('h2');
+      assert.equal(resolvedRule(css, h2, 'display'), 'block');
+      assert.equal(resolvedRule(css, h2, 'overflow-wrap'), 'anywhere');
+      assert.equal(resolvedRule(css, h2, 'line-height'), '1.6');
+      assert.equal(resolvedRule(css, holder.querySelector('th'), 'color'), '#ffffff');
+      assert.match(resolvedRule(css, holder.querySelector('th'), 'background'), /^#[\da-f]{6}$/i);
+      assert.equal(resolvedRule(css, holder.querySelector('th strong'), 'color'), 'inherit');
+      assert.match(holder.textContent, /保留值/);
+    }
+  }
+});
+
 function resolvedRule(css, element, property) {
   let winner;
   let order = 0;
@@ -48,11 +66,11 @@ function resolvedRule(css, element, property) {
 }
 
 test('only safe typography options survive normalization and legacy gets its original size', () => {
-  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_font_size:12, code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({}), { font_family: 'theme', font_size: 17, code_font_size:12, code_theme:'auto', code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
   for (const theme of ['technical', 'journal', 'minimal', 'obsidian', 'deepsea', 'teal']) assert.equal(normalizeTypography(null, theme).font_size, 17);
   for (const theme of ['default', 'grace', 'simple', 'classic']) assert.equal(normalizeTypography({}, theme).font_size, 16);
-  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_font_size:12, code_wrap: 'wrap', table_mode: 'cards', caption_font_size: 12, table_font_size: 13 });
-  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_font_size:12, code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({ font_family: 'serif', font_size: '18', code_wrap: 'wrap', table_mode: 'cards', extra: 'ignored' }), { font_family: 'serif', font_size: 18, code_font_size:12, code_theme:'auto', code_wrap: 'wrap', table_mode: 'cards', caption_font_size: 12, table_font_size: 13 });
+  assert.deepEqual(normalizeTypography({ font_family: 'evil;url()', font_size: '17px;color:red', code_wrap: '__proto__', table_mode: [] }), { font_family: 'theme', font_size: 17, code_font_size:12, code_theme:'auto', code_wrap: 'wrap', table_mode: 'auto', caption_font_size: 12, table_font_size: 13 });
   assert.equal(normalizeTypography({ font_size: true }).font_size, 17);
 });
 
@@ -99,9 +117,9 @@ function contrast(first, second) {
 test('AMD laboratory themes have distinct paper, heading and quote profiles with readable code', () => {
   const html = '<h1>AMD 实验室</h1><h2>实验条件</h2><p>正文 <a href="https://example.com">链接</a></p><blockquote><p>实验口径</p></blockquote><pre><code class="language-python"># 注释\nreturn "ok"</code></pre>';
   const profiles = [
-    { theme: 'obsidian', paper: '#111b22', ink: '#e6edf3', code: '#0b141c' },
-    { theme: 'deepsea', paper: '#f1f8f8', ink: '#15383d', code: '#102e35' },
-    { theme: 'teal', paper: '#ffffff', ink: '#183b36', code: '#e9f5ef' },
+    { theme: 'obsidian', paper: '#111b22', ink: '#e6edf3', code: '#1e1e1e' },
+    { theme: 'deepsea', paper: '#f1f8f8', ink: '#15383d', code: '#1e1e1e' },
+    { theme: 'teal', paper: '#ffffff', ink: '#183b36', code: '#f6f8fa' },
   ];
   const headings = [];
   for (const profile of profiles) {
@@ -131,6 +149,42 @@ test('all non-default palettes stay readable on obsidian dark paper and alert ba
     assert.ok(contrast(computedRule(css, '#output .wx-typography p code', 'color'), computedRule(css, '#output .wx-typography p code', 'background')) >= 4.5, `${palette} inline code`);
     assert.ok(contrast(computedRule(css, '#output .wx-typography .wx-alert-warning .wx-alert-title', 'color'), tint) >= 4.5, `${palette} warning title`);
   }
+});
+
+test('Nord, Dracula and Latte article themes have distinct exportable hierarchy and readable semantic colors',()=>{
+  const html='<h1>AI 工程手记</h1><h2>实验步骤</h2><h3>推理调优</h3><h4>配置说明</h4><p>正文 <strong>关键结论</strong> <a href="https://example.com">参考资料</a> <code>dtype</code></p><blockquote><p>可复现的实验口径。</p></blockquote><blockquote class="markdown-alert markdown-alert-note"><p class="markdown-alert-title">提示</p><p>提示正文</p></blockquote><blockquote class="markdown-alert markdown-alert-warning"><p class="markdown-alert-title">注意</p><p>警告正文</p></blockquote><blockquote class="markdown-alert markdown-alert-caution"><p class="markdown-alert-title">风险</p><p>风险正文</p></blockquote><table><thead><tr><th>配置</th><th>结果</th></tr></thead><tbody><tr><td>FP16</td><td>128</td></tr></tbody></table><figure><img src="plot.png" title="性能结果"></figure><pre><code class="language-python">def infer(x):\n    return x + 1</code></pre>';
+  const expected={nord:{paper:'#eceff4',code:'vscode'},dracula:{paper:'#282a36',code:'catppuccin'},latte:{paper:'#eff1f5',code:'github'}};
+  const headings=[];
+  for(const [theme,profile] of Object.entries(expected)) for(const palette of ['warm','blue','wechat','red','violet','ink']) {
+    const {holder,css}=render(html,{theme,palette});
+    const get=(selector,property)=>computedRule(css,'#output .wx-typography'+(selector?' '+selector:''),property);
+    assert.ok(holder.querySelector('.wx-theme-'+theme),theme+' uses modern structure');
+    assert.equal(normalizeTypography({},theme).font_size,17);
+    assert.equal(get('','background'),profile.paper);
+    assert.equal(codeTheme(theme).id,profile.code);
+    assert.ok(contrast(get('p','color'),profile.paper)>=7,theme+'/'+palette+' calm body');
+    for(const heading of ['h1','h2']) {
+      assert.match(get(heading,'background'),/^#[0-9a-f]{6}$/i,theme+' '+heading+' real solid panel');
+      assert.ok(contrast(get(heading,'color'),get(heading,'background'))>=4.5,theme+'/'+palette+' '+heading);
+    }
+    assert.ok(contrast(get('h3','color'),profile.paper)>=4.5,theme+'/'+palette+' complementary heading');
+    assert.notEqual(get('h2','color'),get('h3','color'),theme+'/'+palette+' heading hierarchy has complementary colors');
+    assert.ok(contrast(get('strong','color'),profile.paper)>=4.5,theme+'/'+palette+' emphasis');
+    assert.ok(contrast(get('a','color'),profile.paper)>=4.5,theme+'/'+palette+' link');
+    assert.ok(contrast(get('p code','color'),get('p code','background'))>=4.5,theme+'/'+palette+' inline code');
+    assert.ok(contrast(get('blockquote p','color'),get('blockquote','background'))>=4.5,theme+'/'+palette+' quotation');
+    assert.ok(contrast(get('th','color'),get('th','background'))>=4.5,theme+'/'+palette+' table header');
+    assert.ok(contrast(get('figcaption','color'),profile.paper)>=4.5,theme+'/'+palette+' caption');
+    for(const kind of ['note','warning','caution']) {
+      const background=get('.wx-alert-'+kind,'background');
+      assert.ok(contrast(get('.wx-alert-'+kind+' .wx-alert-title','color'),background)>=4.5,theme+'/'+palette+' '+kind+' title');
+      assert.ok(contrast(get('.wx-alert p','color'),background)>=4.5,theme+'/'+palette+' '+kind+' prose');
+    }
+    assert.doesNotMatch(css,/linear-gradient|radial-gradient|::before|::after|display:\s*(?:grid|flex)/i);
+    assert.equal(holder.querySelector('pre code').textContent,'def infer(x):\n    return x + 1');
+    if(palette==='warm')headings.push(['h1','h2','h3'].map(tag=>['background','color','padding','border-left','border-top','border-bottom'].map(key=>get(tag,key)).join('|')).join('/'));
+  }
+  assert.equal(new Set(headings).size,3,'Each new article theme has its own heading profile');
 });
 
 test('figure captions use explicit title or explanatory alt text and never duplicate existing captions', () => {
@@ -294,11 +348,12 @@ test('new theme palettes color article accents while preserving paper and code c
   }
 });
 
-test('palette handling leaves legacy theme CSS and default raw HTML unchanged', () => {
+test('legacy default prose remains exact while palette changes only repaired table headers', () => {
   const html = '<h2>旧主题</h2><p>旧正文</p>';
   for (const palette of ['warm', 'blue', 'wechat', 'red', 'violet', 'ink']) {
     assert.deepEqual(prepareTypography(html, { theme: 'grace', palette }, document, highlighter), { html, css: '' });
-    assert.equal(render(html, { theme: 'grace', palette, font_size: 18 }).css, render(html, { theme: 'grace', palette: 'warm', font_size: 18 }).css);
+    const withoutHeaderColor = css => css.replace(/(th \{ color: #ffffff !important; background: )#[\da-f]{6}/i, '$1HEADER');
+    assert.equal(withoutHeaderColor(render(html, { theme: 'grace', palette, font_size: 18 }).css), withoutHeaderColor(render(html, { theme: 'grace', palette: 'warm', font_size: 18 }).css));
   }
 });
 

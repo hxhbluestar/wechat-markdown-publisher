@@ -16,10 +16,10 @@ import zipfile
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, unquote, urlsplit
 
-RENDER_VERSION = '2026.10.22-workflow.5'
+RENDER_VERSION = '2026.10.22-code.6'
 MAX_METADATA_BYTES = 256 * 1024
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
-EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_font_size','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))
+EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_font_size','code_theme','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))
 CONDITION_FIELDS = frozenset(('hardware','vram','os_kernel','rocm_version','framework_version','model_version','precision','parallelism','input_output_length','concurrency','test_date','raw_data_source'))
 HASH = re.compile(r'[a-f0-9]{64}\Z')
 CREDENTIAL = re.compile(r'(?:[a-z0-9]+[_-])*(?:access[_-]?token|refresh[_-]?token|api[_-]?(?:token|key)|app[_-]?secret|secret|password|passwd|cookie|authorization|credentials|token)\Z', re.I)
@@ -116,9 +116,10 @@ def safe_package_metadata(metadata):
     result = {}
     strings = {'title': 64, 'author': 32, 'digest': 120, 'published_at': 512, 'imported_at': 512, 'import_fingerprint': 512, 'import_kind': 512, 'source_author': 512, 'source_date': 512}
     choices = {
-        'theme': {'default','grace','simple','technical','journal','minimal','obsidian','deepsea','teal'},
+        'theme': {'default','grace','simple','technical','journal','minimal','obsidian','deepsea','teal','nord','dracula','latte'},
         'palette': {'warm','wechat','blue','red','violet','ink'}, 'font_family': {'theme','sans','serif'},
         'code_wrap': {'scroll','wrap'}, 'table_mode': {'auto','scroll','cards'},
+        'code_theme': {'auto','vscode','github','catppuccin'},
         'article_type': {'tutorial','benchmark','rocm-repost'},
     }
     for key, value in metadata.items():

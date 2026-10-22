@@ -27,3 +27,29 @@ test('multiline syntax tokens split by source lines without losing token style o
   assert.equal(root.querySelector('p [data-wx-code-line-number]'),null);
   assert.equal(root.querySelectorAll('[data-wx-code-line-text] [style*="color"]').length,2);
 });
+
+test('CSV and text blocks display their exact data without line numbers or a gutter',()=>{
+  const source='name,value\n"GPU, model",12\n\n  leading,14\n';
+  for(const language of ['csv','CSV','tsv','text','txt','plaintext','plain']) {
+    const root=render(`<pre><code class="language-${language}">${source}</code></pre>`);
+    assert.equal(root.querySelectorAll('[data-wx-code-line-number]').length,0,language);
+    assert.equal(root.querySelectorAll('[data-wx-code-line]').length,0,language);
+    assert.equal(read(root.querySelector('code')),source,language);
+    root.innerHTML=preserveWechatCodeLayout(root.innerHTML,document);
+    assert.equal(read(root.querySelector('code')),source,language+' publishing');
+    assert.equal(root.querySelector('code').querySelectorAll('br').length,4,language);
+  }
+});
+
+test('only data block languages skip numbers; code referring to CSV files remains numbered',()=>{
+  const root=render('<pre><code class="language-bash">cat data.csv\npython run.py</code></pre><pre><code class="language-plaintext" data-language-pending="python">import csv\nprint(12)</code></pre>');
+  assert.deepEqual([...root.querySelectorAll('pre')].map(pre=>pre.querySelectorAll('[data-wx-code-line-number]').length),[2,2]);
+});
+
+test('original language metadata and language aliases identify plain data blocks',()=>{
+  for(const attributes of ['class="language-plaintext" data-language-pending=" CSV "','data-language="tsv"','class="hljs lang-TXT"']) {
+    const root=render(`<pre><code ${attributes}>name,value\n  GPU,12\n</code></pre>`);
+    assert.equal(root.querySelectorAll('[data-wx-code-line-number]').length,0,attributes);
+    assert.equal(read(root.querySelector('code')),'name,value\n  GPU,12\n',attributes);
+  }
+});

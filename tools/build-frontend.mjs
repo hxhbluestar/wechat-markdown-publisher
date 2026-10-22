@@ -24,6 +24,7 @@ const readText=async(filename)=>(await readFile(filename,'utf8')).replaceAll('\r
 const copy=async(src,dest)=>writeFile(path.join(root,dest),await readText(path.join(root,src)));
 for(const [src,dest] of [
   ['frontend/asset-paths.mjs','asset-paths-20261014.mjs'],
+  ['frontend/code-themes.mjs','code-themes-20261022.mjs'],
   ['frontend/article-spacing.mjs','article-spacing-20261017-scroll.mjs'],
   ['frontend/scroll-sync.mjs','scroll-sync-20261017-scroll.mjs'],
   ['frontend/proofreading.css','proofreading-20261017-scroll.css'],
@@ -40,7 +41,7 @@ for(const [src,dest] of [
 ])await copy(src,'app/web/editor/assets/'+dest);
 for(const [name,dependency] of [['typography','article-spacing'],['typography-controls','typography'],['proofreading','proofreading-core'],['proofreading-core','proofreading-dictionary']]){
   const content=await readText(path.join(root,'frontend',name+'.mjs'));
-  await writeFile(path.join(assets,name+'-20261017-scroll.mjs'),content.replaceAll(`'./${dependency}.mjs'`,`'./${dependency}-20261017-scroll.mjs'`));
+  await writeFile(path.join(assets,name+'-20261017-scroll.mjs'),content.replaceAll(`'./${dependency}.mjs'`,`'./${dependency}-20261017-scroll.mjs'`).replaceAll("'./code-themes.mjs'","'./code-themes-20261022.mjs'"));
 }
 await copy('frontend/code-languages.js','app/web/vendor/highlight-ai-20261017.js');
 await mkdir(path.join(root,'app/web/vendor/mathjax-3.2.2'),{recursive:true});

@@ -13,20 +13,36 @@ test('the editor color indicator follows the actual layout accent while legacy p
   assert.equal(typographyAccent('grace','blue'),null);
 });
 
-test('four distinct templates are offered and a saved older template remains loadable without migration', () => {
+test('seven distinct templates are offered and a saved older template remains loadable without migration', () => {
   const {document}=parseHTML(`<main><select id="themeSelect">${themeOptionsMarkup()}</select>${typographyControlsMarkup()}</main>`);
   const select=document.querySelector('#themeSelect');
-  assert.deepEqual([...select.options].map(o=>o.value),['technical','minimal','journal','obsidian']);
+  assert.deepEqual([...select.options].map(o=>o.value),['technical','minimal','journal','obsidian','nord','dracula','latte']);
+  for(const [id,label] of Object.entries({nord:'极光蓝绿',dracula:'紫夜实验室',latte:'暖彩手记'})) assert.equal([...select.options].find(o=>o.value===id)?.textContent,label);
   const controls=connectTypographyControls(document);
   controls.load({theme:'deepsea'});
-  assert.equal(select.options.length,5);
+  assert.equal(select.options.length,8);
   assert.match([...select.options].find(o=>o.value==='deepsea').textContent,/已保存/);
   controls.load({theme:'grace'});
-  assert.equal(select.options.length,5);
+  assert.equal(select.options.length,8);
   assert.ok([...select.options].some(o=>o.value==='grace'));
   assert.ok(![...select.options].some(o=>o.value==='deepsea'));
   controls.themeChanged('technical');
-  assert.equal(select.options.length,4);
+  assert.equal(select.options.length,7);
+});
+
+test('new article profiles keep explicit code themes independent while loading recommended text settings',()=>{
+  const {document}=parseHTML(`<main>${typographyControlsMarkup()}</main>`);
+  const controls=connectTypographyControls(document);
+  controls.load({theme:'technical',code_theme:'github',code_font_size:14,code_wrap:'scroll',font_size:18});
+  for(const theme of ['nord','dracula','latte','journal']) {
+    controls.themeChanged(theme);
+    assert.equal(controls.read().code_theme,'github',theme+' keeps the chosen code palette');
+    assert.equal(controls.read().font_size,17,theme+' recommended text size');
+    assert.equal(controls.read().code_font_size,12,theme+' recommended code size');
+    assert.equal(controls.read().code_wrap,'wrap',theme+' recommended mobile wrapping');
+  }
+  controls.load({theme:'dracula'});
+  assert.equal(controls.read().code_theme,'auto','opening another draft applies its own saved settings');
 });
 
 test('typography controls offer fonts, size, code wrapping, tables and phone widths', () => {
@@ -59,6 +75,26 @@ test('code size can be changed to 12 or 14 and restored independently with its s
   assert.equal(changes.length,1,'Loading another article does not mark it dirty');
 });
 
+test('code theme can be selected per article independently from size and long-line mode',()=>{
+  const {document,Event}=parseHTML(`<main>${typographyControlsMarkup()}</main>`);
+  const changes=[];
+  const controls=connectTypographyControls(document,values=>changes.push(values));
+  const select=document.querySelector('#codeThemeSelect');
+  assert.ok(select,'Code theme is an editable article setting');
+  assert.deepEqual([...select.options].map(option=>option.value),['auto','vscode','github','catppuccin']);
+  assert.equal(select.closest('label').previousElementSibling.querySelector('select').id,'codeFontSizeSelect');
+  controls.load({theme:'technical',code_theme:'github',code_font_size:14,code_wrap:'scroll'});
+  assert.equal(controls.read().code_theme,'github');
+  for(const option of select.options)option.selected=option.value==='catppuccin';
+  select.dispatchEvent(new Event('change'));
+  assert.equal(changes[0].code_theme,'catppuccin');
+  assert.equal(changes[0].code_font_size,14);
+  assert.equal(changes[0].code_wrap,'scroll');
+  controls.load({theme:'technical'});
+  assert.equal(controls.read().code_theme,'auto');
+  assert.equal(changes.length,1,'Loading another article does not mark it dirty');
+});
+
 test('local code highlighter recognizes PowerShell in addition to technical languages', () => {
   const context = {module:{exports:{}},exports:{}};
   vm.runInNewContext(fs.readFileSync(new URL('../app/web/highlight.min.js',import.meta.url),'utf8'),context);
@@ -68,12 +104,12 @@ test('local code highlighter recognizes PowerShell in addition to technical lang
   for (const name of ['python','bash','powershell','cpp','yaml','sql','diff']) assert.ok(highlighter.getLanguage(name),name);
 });
 
-test('loading a saved style preserves seven independent publishing settings including 12px details', () => {
+test('loading a saved style preserves eight independent publishing settings including 12px details', () => {
   const {document} = parseHTML(`<main>${typographyControlsMarkup()}</main>`);
   const changes=[];
   const controls=connectTypographyControls(document,values=>changes.push(values));
   controls.load({theme:'journal',font_family:'serif',font_size:18,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
-  assert.deepEqual(controls.read('journal'),{font_family:'serif',font_size:18,code_font_size:12,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
+  assert.deepEqual(controls.read('journal'),{font_family:'serif',font_size:18,code_font_size:12,code_theme:'auto',code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:12});
   assert.equal(changes.length,0,'Loading must not mark the article dirty');
 });
 
@@ -82,9 +118,9 @@ test('selecting a technical style applies its profile without retaining the old 
   const controls=connectTypographyControls(document,()=>{});
   controls.load({theme:'grace',font_size:16,font_family:'sans'});
   controls.themeChanged('journal');
-  assert.deepEqual(controls.read('journal'),{font_family:'theme',font_size:17,code_font_size:12,code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:13});
+  assert.deepEqual(controls.read('journal'),{font_family:'theme',font_size:17,code_font_size:12,code_theme:'auto',code_wrap:'wrap',table_mode:'cards',caption_font_size:12,table_font_size:13});
   controls.themeChanged('minimal');
-  assert.deepEqual(controls.read('minimal'),{font_family:'theme',font_size:16,code_font_size:12,code_wrap:'wrap',table_mode:'auto',caption_font_size:12,table_font_size:13});
+  assert.deepEqual(controls.read('minimal'),{font_family:'theme',font_size:16,code_font_size:12,code_theme:'auto',code_wrap:'wrap',table_mode:'auto',caption_font_size:12,table_font_size:13});
 });
 
 test('laboratory themes use readable defaults and changing a detail size marks the draft dirty', () => {

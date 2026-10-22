@@ -1,1 +1,48 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>WeChat publishing checks</title><style>body{font:14px/1.6 system-ui;background:#eef1f5;margin:20px}#app{display:none}#samples{width:600px;background:white;padding:24px}pre{max-width:100%}#report{white-space:pre-wrap}</style><script src="/highlight.min.js"></script><script src="/vendor/highlight-powershell-11.11.1.min.js"></script><script src="/vendor/highlight-extras-11.11.1.js"></script><script src="/vendor/highlight-ai-20261017.js"></script><script type="module" src="/tests/publishing-browser.mjs"></script></head><body><div id="app"></div><h1>微信代码换行、字号与外链验收</h1><div id="report">Running…</div><button id="selectCodeSample" type="button">选择代码以验收复制</button><div id="samples"></div></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="utf-8">
+ <title>WeChat article and code presentation acceptance</title>
+ <style>
+  body{font:14px/1.6 system-ui;background:#eef1f5;color:#263342;margin:20px}
+  #app{display:none}
+  #samples{width:600px;background:white;padding:24px;box-sizing:border-box;box-shadow:0 8px 32px #26334212;border-radius:12px}
+  pre{max-width:100%}
+  #report{white-space:pre-wrap}
+  .theme-switch{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
+  .control-label{min-width:4em;color:#637083;font-size:12px}
+  button{font:inherit;background:white;color:#45536a;border:1px solid #cbd3df;border-radius:7px;padding:6px 10px;cursor:pointer}
+  button[aria-pressed=true]{background:#263342;color:white;border-color:#263342}
+  h1{font-size:20px;margin:0 0 8px}
+ </style>
+ <script src="/highlight.min.js"></script>
+ <script src="/vendor/highlight-powershell-11.11.1.min.js"></script>
+ <script src="/vendor/highlight-extras-11.11.1.js"></script>
+ <script src="/vendor/highlight-ai-20261017.js"></script>
+ <script type="module" src="/tests/publishing-browser.mjs"></script>
+</head>
+<body>
+ <div id="app"></div>
+ <h1>公众号文章与代码排版 · 发布验收</h1>
+ <div id="report">Running…</div>
+ <div class="theme-switch" aria-label="文章模板对比">
+  <span class="control-label">文章模板</span>
+  <button data-show-article-theme="nord" type="button" aria-pressed="true">极光蓝绿</button>
+  <button data-show-article-theme="dracula" type="button" aria-pressed="false">紫夜实验室</button>
+  <button data-show-article-theme="latte" type="button" aria-pressed="false">暖彩手记</button>
+ </div>
+ <div class="theme-switch" aria-label="代码主题对比">
+  <span class="control-label">代码配色</span>
+  <button data-show-code-theme="vscode" type="button" aria-pressed="true">VS Code 深色</button>
+  <button data-show-code-theme="github" type="button" aria-pressed="false">GitHub 浅色</button>
+  <button data-show-code-theme="catppuccin" type="button" aria-pressed="false">Catppuccin</button>
+ </div>
+ <div class="theme-switch" aria-label="代码字号对比">
+  <span class="control-label">代码字号</span>
+  <button data-show-code-size="12" type="button" aria-pressed="true">12px</button>
+  <button data-show-code-size="14" type="button" aria-pressed="false">14px</button>
+  <button id="selectCodeSample" type="button">选择代码以验收复制</button>
+ </div>
+ <div id="samples"></div>
+</body>
+</html>

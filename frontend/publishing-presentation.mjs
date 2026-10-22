@@ -1,3 +1,4 @@
+import {CODE_TOKEN_SELECTORS} from './code-themes.mjs';
 import {addCodeLineNumbers} from './code-line-numbers.mjs';
 /** Publishing-only presentation; never modifies the Markdown editor document. */
 export function preparePublishingPresentation(html, {document = globalThis.document, linkColor = '#576b95', codeColors, codeFontSize = 12, codeWrap='wrap',lineNumberColor='#657082'} = {}) {
@@ -17,7 +18,7 @@ export function preparePublishingPresentation(html, {document = globalThis.docum
   }
   for (const node of root.querySelectorAll('.wx-code-caption,.wx-code-caption *')) node.style.setProperty('font-size','12px','important');
   if(codeColors) {
-    const roles={comment:'.hljs-comment,.hljs-quote',keyword:'.hljs-keyword,.hljs-doctag',decorator:'.hljs-meta',string:'.hljs-string,.hljs-regexp',number:'.hljs-number,.hljs-symbol',literal:'.hljs-literal',fn:'.hljs-title,.hljs-name',type:'.hljs-type',api:'.hljs-built_in',attribute:'.hljs-attr,.hljs-attribute',variable:'.hljs-variable,.hljs-template-variable,.hljs-params',operator:'.hljs-operator,.hljs-punctuation',addition:'.hljs-addition',deletion:'.hljs-deletion'};
+    const roles=CODE_TOKEN_SELECTORS;
     for(const [role,selectors] of Object.entries(roles)) for(const node of root.querySelectorAll(selectors)) {
       if(node.closest('pre') && codeColors[role]) node.style.setProperty('color',codeColors[role],'important');
     }

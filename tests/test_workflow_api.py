@@ -133,12 +133,12 @@ class WorkflowAPI(unittest.TestCase):
         self.assertEqual(status,200);self.assertTrue(report['can_sync'])
         self.assertEqual(report['counts']['confirm'],0)
         self.assertTrue({'placeholder','privacy-private-ip','source-empty'} <= {i['code'] for i in report['issues']})
-        payload.update(source_hash=hashlib.sha256(d['content'].encode()).hexdigest(),theme=d['metadata']['theme'],palette=d['metadata']['palette'],typography={k:d['metadata'][k] for k in ('font_family','font_size','code_font_size','code_wrap','table_mode','caption_font_size','table_font_size')})
+        payload.update(source_hash=hashlib.sha256(d['content'].encode()).hexdigest(),theme=d['metadata']['theme'],palette=d['metadata']['palette'],typography={k:d['metadata'][k] for k in ('font_family','font_size','code_font_size','code_theme','code_wrap','table_mode','caption_font_size','table_font_size')})
         self.assertEqual(self.request('/api/wechat/drafts/'+d['id']+'/sync',payload)[0],409)
         payload.update(preflight_fingerprint=report['fingerprint'],acknowledged=[])
         # An old six-field editor cannot bind the code-size setting to this
         # asynchronous snapshot. It must refresh before any job is created.
-        old_typography={key:value for key,value in payload['typography'].items() if key!='code_font_size'}
+        old_typography={key:value for key,value in payload['typography'].items() if key not in ('code_font_size','code_theme')}
         status,rejected=self.request('/api/wechat/drafts/'+d['id']+'/sync',{**payload,'typography':old_typography})
         self.assertEqual(status,400,rejected)
         self.assertNotIn('job',rejected)

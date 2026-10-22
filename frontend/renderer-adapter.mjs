@@ -1,5 +1,6 @@
+import {codeTheme} from './code-themes.mjs';
 import { BS, MS, J8, AS, kd } from "./vendor/editor-engine-20261018.js";
-import { prepareTypography, typographyAccent, typographyCodeColors } from "./typography.mjs";
+import { prepareTypography, typographyAccent } from "./typography.mjs";
 import { preparePublishingPresentation, preserveWechatCodeLayout } from "./publishing-presentation.mjs";
 import { applyBlockOverrides } from "./article-blocks.mjs";
 import { prepareRichMarkdown } from "./rich-content.mjs";
@@ -45,8 +46,8 @@ export function previewWechatArticle(
       linkColor: typographyAccent(theme,palette) || '#576b95',
       codeFontSize: options.code_font_size,
       codeWrap: options.code_wrap,
-      lineNumberColor: typographyCodeColors(theme).comment,
-      codeColors: ['grace','default','simple'].includes(theme) ? typographyCodeColors(theme) : undefined,
+      lineNumberColor: codeTheme(theme,options.code_theme).gutter,
+      codeColors: codeTheme(theme,options.code_theme).tokens,
     }),
     unmatched: blocks.unmatched,
     css:

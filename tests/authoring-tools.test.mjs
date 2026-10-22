@@ -67,12 +67,24 @@ test('code fold callback focus mode and accessible column range do not change ar
 });
 
 test('three personal presets store only allowed typography fields and apply through callback',()=>{
-  const h=harness({metadata:{theme:'technical',palette:'blue',font_size:18,font_family:'serif',code_wrap:'wrap',table_mode:'cards',caption_font_size:14,table_font_size:15,title:'private title',wechat_account_id:'secret-account'}});
+  const h=harness({metadata:{theme:'technical',palette:'blue',font_size:18,font_family:'serif',code_theme:'catppuccin',code_wrap:'wrap',table_mode:'cards',caption_font_size:14,table_font_size:15,title:'private title',wechat_account_id:'secret-account'}});
   const select=h.query('[data-authoring-preset]');assert.equal(select.querySelectorAll('option').length,3);
   h.click('[data-authoring-action="save-preset"]');h.setMetadata({font_size:15});h.click('[data-authoring-action="apply-preset"]');
   assert.equal(h.presets[0].font_size,18);assert.equal(h.presets[0].code_wrap,'wrap');assert.equal(h.presets[0].table_font_size,15);
+  assert.equal(h.presets[0].code_theme,'catppuccin');
   assert.equal(h.presets[0].title,undefined);assert.equal(h.presets[0].wechat_account_id,undefined);
   const persisted=[...h.saved.values()].join('');assert.ok(!persisted.includes('private title'));assert.ok(!persisted.includes('secret-account'));
+});
+
+test('new article templates and their explicit code themes survive personal preset save and apply',()=>{
+  for (const [theme,code_theme] of [['nord','vscode'],['dracula','catppuccin'],['latte','github']]) {
+    const metadata={theme,palette:'violet',font_family:'serif',font_size:18,code_theme,code_font_size:14,code_wrap:'scroll',table_mode:'cards',caption_font_size:12,table_font_size:15};
+    const h=harness({metadata});
+    h.click('[data-authoring-action="save-preset"]');
+    h.setMetadata({theme:'technical'});
+    h.click('[data-authoring-action="apply-preset"]');
+    assert.deepEqual(h.presets[0],metadata,theme);
+  }
 });
 
 test('unmatched edits remain visible and can be explicitly reset without rebinding',()=>{

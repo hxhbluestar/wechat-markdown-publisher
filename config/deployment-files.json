@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "2026.10.22-workflow.5",
+  "release": "2026.10.22-code.6",
   "files": [
     "app/web/server.py",
     "app/web/rocm_import.py",
@@ -24,6 +24,7 @@
     "app/web/editor/assets/sync-progress-20261018.css",
     "app/web/editor/assets/editor-layout-20261018.css",
     "app/web/editor/assets/typography-20261017-scroll.mjs",
+    "app/web/editor/assets/code-themes-20261022.mjs",
     "app/web/editor/assets/typography-controls-20261017-scroll.mjs",
     "app/web/editor/assets/typography-controls-20261017-scroll.css",
     "app/web/editor/assets/article-spacing-20261017-scroll.mjs",

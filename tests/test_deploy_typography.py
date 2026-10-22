@@ -25,6 +25,7 @@ FILES = (
     "app/web/editor/index.html",
     "app/web/editor/assets/index-20261017-scroll.js",
     "app/web/editor/assets/typography-20261017-scroll.mjs",
+    "app/web/editor/assets/code-themes-20261022.mjs",
     "app/web/editor/assets/typography-controls-20261017-scroll.mjs",
     "app/web/editor/assets/typography-controls-20261017-scroll.css",
     "app/web/editor/assets/article-spacing-20261017-scroll.mjs",

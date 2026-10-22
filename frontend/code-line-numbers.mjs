@@ -1,7 +1,11 @@
+const PLAIN_DATA_LANGUAGES=new Set(['csv','tsv','text','txt','plaintext','plain']);
+
 /** Number source lines without inserting digits into the source text cells. */
 export function addCodeLineNumbers(root, document, {wrap=true,color='#657082'}={}) {
   for(const code of root.querySelectorAll('pre > code')) {
     if(code.hasAttribute('data-wx-code-numbered')) continue;
+    const language=(code.getAttribute('data-language-pending')||code.getAttribute('data-language')||code.className.match(/(?:^|\s)(?:language|lang)-([^\s]+)/i)?.[1]||'').trim().split(/\s+/)[0].toLowerCase();
+    if(PLAIN_DATA_LANGUAGES.has(language)) continue;
     const lines=[document.createDocumentFragment()];
     const append=(value,ancestors)=>{
       if(!value) return;
@@ -35,12 +39,12 @@ export function addCodeLineNumbers(root, document, {wrap=true,color='#657082'}={
       number.setAttribute('data-wx-code-line-number','true');
       number.setAttribute('aria-hidden','true');
       number.textContent=String(index+1);
-      number.style.cssText=`display:table-cell!important;width:${digits}ch;box-sizing:content-box;padding:0 10px 0 0;border-right:1px solid rgba(128,144,160,.3);color:${color}!important;text-align:right;vertical-align:top;white-space:pre!important;user-select:none!important;-webkit-user-select:none!important;font-weight:400;line-height:inherit`;
+      number.style.cssText=`display:table-cell!important;width:${digits}ch;box-sizing:content-box;padding:0 7px 0 0;border-right:1px solid rgba(128,144,160,.3);color:${color}!important;text-align:right;vertical-align:top;white-space:pre!important;user-select:none!important;-webkit-user-select:none!important;font-weight:400;line-height:inherit`;
       number.style.setProperty('user-select','none','important');
       number.style.setProperty('-webkit-user-select','none','important');
       const text=document.createElement('span');
       text.setAttribute('data-wx-code-line-text','true');
-      text.style.cssText=`display:table-cell!important;min-width:0;padding:0 0 0 10px;border:0;vertical-align:top;white-space:${wrap?'pre-wrap':'pre'}!important;overflow-wrap:${wrap?'anywhere':'normal'}!important;word-break:normal`;
+      text.style.cssText=`display:table-cell!important;min-width:0;padding:0 0 0 8px;border:0;vertical-align:top;white-space:${wrap?'pre-wrap':'pre'}!important;overflow-wrap:${wrap?'anywhere':'normal'}!important;word-break:normal`;
       text.append(fragment);
       if(index<lines.length-1) text.append(document.createTextNode('\n'));
       row.append(number,text);code.append(row);

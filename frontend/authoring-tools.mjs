@@ -20,6 +20,9 @@ const THEMES = new Set([
   "obsidian",
   "deepsea",
   "teal",
+  "nord",
+  "dracula",
+  "latte",
 ]);
 const PALETTES = new Set(["warm", "wechat", "blue", "red", "violet", "ink"]);
 const preferenceKey = "wechat-authoring-preferences-v1";

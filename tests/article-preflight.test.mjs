@@ -156,6 +156,11 @@ test('actual bundled language aliases work while unavailable grammars are adviso
   assert.equal(content.slice(findings[0].from, findings[0].to).trim(), '```nginx');
 });
 
+test('CSV and TSV are recognized as plain data languages without unsupported language advice', () => {
+  const content = ['csv', 'CSV', 'tsv', 'txt', 'text', 'plaintext', 'plain'].map(language => `\`\`\`${language}\nname,value\nGPU,12\n\`\`\``).join('\n');
+  assert.equal(run(content).issues.filter(issue => issue.code === 'code-language-unsupported').length, 0);
+});
+
 test('HTML attribute inspection ignores data-src and quoted lookalike attributes', () => {
   const content = `<img alt='src="images/fake.png"' src = 'images/real.png'><img data-src="images/lazy.png">`;
   const report = run(content, { assets: [{ path: 'images/real.png', size: 22 }] });

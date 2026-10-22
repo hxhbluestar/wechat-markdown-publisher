@@ -1,6 +1,6 @@
 import {normalizeTypography} from './typography.mjs';
 
-const MAIN_THEMES = {technical:'AMD 技术蓝',minimal:'极简墨色',journal:'纸感期刊',obsidian:'曜石青'};
+const MAIN_THEMES = {technical:'AMD 技术蓝',minimal:'极简墨色',journal:'纸感期刊',obsidian:'曜石青',nord:'极光蓝绿',dracula:'紫夜实验室',latte:'暖彩手记'};
 const SAVED_THEMES = {deepsea:'深海青',teal:'青绿实验室',grace:'雅致',default:'简洁',simple:'留白'};
 
 // Reference CSS viewports, not physical panel pixels or a WeChat device emulator.
@@ -50,6 +50,7 @@ export function typographyControlsMarkup() {
     <label>图片说明字号<select id="captionFontSizeSelect"><option value="12" selected>12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>
     <label>表格字号<select id="tableFontSizeSelect"><option value="12">12 px</option><option value="13" selected>13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>
     <label>代码字号<select id="codeFontSizeSelect"><option value="12" selected>12 px</option><option value="14">14 px</option></select></label>
+    <label>代码主题<select id="codeThemeSelect"><option value="auto" selected>随版式</option><option value="vscode">VS Code 深色</option><option value="github">GitHub 浅色</option><option value="catppuccin">Catppuccin 摩卡</option></select></label>
     <label>代码长行<select id="codeWrapSelect"><option value="wrap" selected>阅读换行</option><option value="scroll">横向滚动</option></select></label>
     <label>表格呈现<select id="tableModeSelect"><option value="auto">自动适配</option><option value="scroll">保留横滑</option><option value="cards">分行卡片</option></select></label>
     <div class="device-preview-controls" aria-label="设备排版预览">
@@ -63,7 +64,7 @@ export function typographyControlsMarkup() {
 }
 
 export function connectTypographyControls(container, onChange = () => {}) {
-  const ids = {font_family:'fontFamilySelect',font_size:'fontSizeSelect',caption_font_size:'captionFontSizeSelect',table_font_size:'tableFontSizeSelect',code_font_size:'codeFontSizeSelect',code_wrap:'codeWrapSelect',table_mode:'tableModeSelect'};
+  const ids = {font_family:'fontFamilySelect',font_size:'fontSizeSelect',caption_font_size:'captionFontSizeSelect',table_font_size:'tableFontSizeSelect',code_font_size:'codeFontSizeSelect',code_theme:'codeThemeSelect',code_wrap:'codeWrapSelect',table_mode:'tableModeSelect'};
   const fields = Object.fromEntries(Object.entries(ids).map(([key,id]) => {
     const element=container.querySelector('#'+id);
     if (!element) throw new Error('Missing typography control: '+id);
@@ -144,9 +145,13 @@ export function connectTypographyControls(container, onChange = () => {}) {
       minimal:{font_size:16,code_wrap:'wrap',table_mode:'auto'},
       obsidian:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
       deepsea:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
-      teal:{font_size:17,code_wrap:'wrap',table_mode:'auto'}
+      teal:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
+      nord:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
+      dracula:{font_size:17,code_wrap:'wrap',table_mode:'auto'},
+      latte:{font_size:17,code_wrap:'wrap',table_mode:'auto'}
     };
-    load({theme,font_family:'theme',...profiles[theme]});
+    const codeTheme=read().code_theme;
+    load({theme,font_family:'theme',...profiles[theme],code_theme:codeTheme});
   }
   for (const element of Object.values(fields)) element.addEventListener('change',()=>onChange(read()));
   width?.addEventListener('change',applyWidth);

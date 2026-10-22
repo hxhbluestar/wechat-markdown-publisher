@@ -65,6 +65,7 @@ class ArticlePackageTests(unittest.TestCase):
             'cover': 'cover.png', 'source_url': 'https://example.org/synthetic',
             'theme': 'obsidian', 'palette': 'violet', 'font_family': 'serif', 'font_size': 18,
             'code_wrap': 'wrap', 'table_mode': 'scroll', 'caption_font_size': 12, 'table_font_size': 14,
+            'code_theme': 'catppuccin',
             'show_cover_pic': True, 'need_open_comment': True, 'only_fans_can_comment': False,
             'article_type': 'benchmark', 'experiment_conditions': {'hardware': 'Synthetic GPU', 'rocm_version': 'Example fixed version', 'concurrency': '4'},
             'block_overrides': {self.block_id: {'kind': 'p', 'font_size': 18, 'margin_before': 12, 'line_height': 1.8}},
@@ -83,7 +84,7 @@ class ArticlePackageTests(unittest.TestCase):
         package = self.exported()
         prepared = prepare_import('portable.zip', package)
         self.assertEqual(prepared['title'], self.metadata['title'])
-        for field in ['theme', 'palette', 'font_family', 'font_size', 'code_wrap', 'table_mode', 'caption_font_size', 'table_font_size', 'article_type', 'experiment_conditions', 'block_overrides', 'source_author', 'source_date']:
+        for field in ['theme', 'palette', 'font_family', 'font_size', 'code_wrap', 'code_theme', 'table_mode', 'caption_font_size', 'table_font_size', 'article_type', 'experiment_conditions', 'block_overrides', 'source_author', 'source_date']:
             self.assertEqual(prepared['metadata'][field], self.metadata[field], field)
         original_path, derived_path, cover_path = ['images/' + sha(data) + '.png' for data in (ORIGINAL, DERIVED, COVER)]
         self.assertEqual({asset['name'] for asset in prepared['assets']}, {original_path, derived_path, cover_path})
