@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "2026.10.22-presentation.3",
+  "release": "2026.10.22-workflow.4",
   "files": [
     "app/web/server.py",
     "app/web/rocm_import.py",

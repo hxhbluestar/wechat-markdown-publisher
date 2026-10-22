@@ -65,7 +65,9 @@ test('reports language, code width, wide table and heading structure as advice',
 test('source omission and placeholders require author review and preserve deliberate code TODOs', () => {
   const report = run('TODO: 补充\nTBD\n待补充\n```python\n# TODO: internal\n```', { metadata: { title: '文章' } });
   assert.equal(report.issues.filter(issue => issue.code === 'placeholder').length, 3);
-  assert.equal(report.issues.find(issue => issue.code === 'source-empty').severity, 'confirm');
+  assert.equal(report.issues.find(issue => issue.code === 'source-empty').severity, 'info');
+  assert.equal(report.canSync, true);
+  assert.ok(report.issues.every(issue => issue.severity === 'info'));
 });
 
 test('privacy findings mask tokens, private addresses and usernames even inside code', () => {
@@ -81,7 +83,7 @@ cd /home/synthetic_user/project
   for (const code of ['privacy-secret', 'privacy-private-ip', 'privacy-username']) assert.ok(codes(report).includes(code), code);
   const output = JSON.stringify(report);
   for (const sensitive of [token, '172.25.12.3', 'synthetic_user']) assert.equal(output.includes(sensitive), false, sensitive);
-  assert.ok(report.issues.filter(issue => issue.code.startsWith('privacy-')).every(issue => issue.severity === 'confirm' && issue.masked === '[已脱敏]'));
+  assert.ok(report.issues.filter(issue => issue.code.startsWith('privacy-')).every(issue => issue.severity === 'info' && issue.masked === '[已脱敏]'));
 });
 
 test('public documentation addresses and placeholder credentials do not create false secret findings', () => {
@@ -116,12 +118,28 @@ test('IDs and reports are deterministic, technical checks can be disabled withou
   assert.equal(new Set(disabled.issues.map(issue => issue.id)).size, disabled.issues.length);
 });
 
-test('a bounded report remains blocked when too many findings prevent complete analysis', () => {
+test('a bounded advice report never turns excess optional findings into a sync blocker', () => {
   const report = run(Array.from({ length: 2100 }, () => 'TODO').join('\n'));
   assert.equal(report.truncated, true);
-  assert.equal(report.canSync, false);
-  assert.ok(report.issues.some(issue => issue.code === 'analysis-truncated' && issue.severity === 'blocker'));
+  assert.equal(report.canSync, true);
+  assert.ok(report.issues.some(issue => issue.code === 'advice-truncated' && issue.severity === 'info'));
   assert.ok(report.issues.length < 2100);
+});
+
+test('too many spelling suggestions remain optional, while late render errors still block', () => {
+  const report = run('按装。'.repeat(501));
+  assert.equal(report.truncated, true);
+  assert.equal(report.canSync, true);
+  assert.equal(report.counts.blocker, 0);
+  const unsafe = run('TODO\n'.repeat(2100), {html:'<pre class="mermaid">graph TD; A--&gt;B</pre>'});
+  assert.equal(unsafe.canSync,false);
+  assert.ok(unsafe.issues.some(issue=>issue.code==='render-mermaid-unresolved' && issue.severity==='blocker'));
+});
+
+test('incomplete structural analysis remains a blocker beyond the source size limit', () => {
+  const report = run('正'.repeat(200001));
+  assert.equal(report.canSync,false);
+  assert.ok(report.issues.some(issue=>issue.code==='analysis-truncated' && issue.severity==='blocker'));
 });
 
 test('actual bundled language aliases work while unavailable grammars are advisory', () => {

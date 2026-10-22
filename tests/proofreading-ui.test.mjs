@@ -39,8 +39,19 @@ test('switching draft cannot apply old corrections or an old undo snapshot',()=>
   const {control,state}=setup();control.open();state.id='other-draft';state.text='另一篇以经写好。';
   assert.equal(control.applySelected(),false);assert.equal(state.text,'另一篇以经写好。');
 });
-test('technical code is skipped and only high confidence pending typos interrupt sync',()=>{
-  const {control,state}=setup('请按装 ROCm。\n\n```python\nlabel="按装"\n```');
-  assert.equal(control.beforeSync(),false);assert.equal(state.dirty,false);
-  control.applySelected();assert.match(state.text,/label="按装"/);assert.equal(control.beforeSync(),true);
+test('suspected typos remain visible suggestions without interrupting draft sync',async()=>{
+  const source='请按装 ROCm。\n\n```python\nlabel="按装"\n```';
+  const {control,state,document}=setup(source);
+  assert.equal(control.beforeSync(),true);
+  assert.equal(document.querySelector('dialog').hasAttribute('open'),false);
+  assert.ok(control.issues.some(issue=>issue.confidence==='high'));
+  assert.ok(document.querySelector('#proofreadingList mark'));
+  assert.match(document.querySelector('#proofreadDraft').textContent,/错别字 · 1/);
+  assert.equal(state.text,source);assert.equal(state.dirty,false);assert.equal(state.saves,0);
+
+  // The optional correction flow still opens on request and saves edits safely.
+  control.open();assert.equal(document.querySelector('dialog').hasAttribute('open'),true);
+  assert.equal(control.applySelected(),true);assert.match(state.text,/请安装 ROCm/);
+  assert.match(state.text,/label="按装"/);assert.equal(control.beforeSync(),true);
+  assert.equal(await control.save(),true);assert.equal(state.dirty,false);assert.equal(state.saves,1);
 });

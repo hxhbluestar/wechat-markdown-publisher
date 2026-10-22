@@ -187,19 +187,48 @@ class SyncWorkflowTests(unittest.TestCase):
         with self.assertRaises(EditorError):
             self.workflow.start(self.draft['id'], original)
 
-    def test_stale_asset_fingerprint_and_missing_acknowledgement_cannot_start_a_job(self):
+    def test_stale_asset_fingerprint_cannot_start_a_job(self):
         original = self.payload()
         # Model an external disk change; uploads now preserve same-name originals.
         self.store.asset_path(self.draft['id'], 'cover.png').write_bytes(png('green'))
         with self.assertRaises(EditorError):
             self.workflow.start(self.draft['id'], original)
-        current = self.store.get(self.draft['id'])
-        self.store.save(current['id'], current['content'], {**current['metadata'], 'source_url': ''}, current['revision'])
-        payload = self.payload()
-        self.assertTrue(payload['acknowledged'])
-        with self.assertRaises(EditorError):
-            self.workflow.start(self.draft['id'], {**payload, 'acknowledged': []})
         self.assertEqual(self.publisher.calls, [])
+        self.assertEqual(self.jobs.list(), [])
+
+    def test_advisory_findings_do_not_require_acknowledgements_before_draft_sync(self):
+        current = self.store.get(self.draft['id'])
+        self.store.save(current['id'], '# Article\n\nTODO check host 192.168.12.19',
+                        {**current['metadata'], 'source_url': ''}, current['revision'])
+        payload = self.payload('<h1>Article</h1><p>TODO check host 192.168.12.19</p>')
+        payload['acknowledged'] = []
+        job = self.workflow.start(self.draft['id'], payload)
+        self.assertEqual(self.jobs.wait_for(job['id'], timeout=3)['state'], 'succeeded')
+        self.assertEqual(len(self.publisher.calls), 1)
+
+    def test_legacy_confirmation_findings_are_advisory_but_binding_and_blockers_remain_required(self):
+        fingerprint = 'a' * 64
+        report = {'can_sync': True, 'counts': {'blocker': 0, 'confirm': 1, 'info': 0},
+                  'fingerprint': fingerprint, 'issues': [{'id': 'legacy-warning', 'severity': 'confirm'}]}
+        self.workflow._confirmation(report, fingerprint, [])
+        with self.assertRaises(RevisionConflict):
+            self.workflow._confirmation(report, 'b' * 64, [])
+        for blocked in ({**report, 'can_sync': False}, {**report, 'counts': {**report['counts'], 'blocker': 1}}):
+            with self.subTest(blocked=blocked), self.assertRaises(EditorError):
+                self.workflow._confirmation(blocked, fingerprint, ['legacy-warning'])
+        for invalid in (None, 'legacy-warning', [None], ['x' * 257], ['x'] * 1025):
+            with self.subTest(invalid=type(invalid).__name__), self.assertRaises(EditorError):
+                self.workflow._confirmation(report, fingerprint, invalid)
+
+    def test_definite_blockers_cannot_be_bypassed_by_acknowledgements(self):
+        current = self.store.get(self.draft['id'])
+        self.store.save(current['id'], current['content'], {**current['metadata'], 'cover': ''}, current['revision'])
+        payload = self.payload()
+        payload['acknowledged'] = ['server-cover-missing-cover-0']
+        with self.assertRaises(EditorError):
+            self.workflow.start(self.draft['id'], payload)
+        self.assertEqual(self.publisher.calls, [])
+        self.assertEqual(self.jobs.list(), [])
 
     def test_exact_duplicate_active_request_reuses_one_job_and_one_publisher(self):
         self.publisher.release.clear()

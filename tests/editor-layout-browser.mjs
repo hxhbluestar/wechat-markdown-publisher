@@ -42,8 +42,16 @@ try {
     await loaded;
     const doc = frame.contentDocument,
       win = frame.contentWindow;
-    await until(() => doc.querySelector(".draft-open"));
-    doc.querySelector(".draft-open").click();
+    // Other acceptance pages can create newer, shorter drafts on this same
+    // disposable server. Scroll assertions require the long layout corpus.
+    const layoutDraft = () =>
+      [...doc.querySelectorAll(".draft-open")].find(
+        (button) =>
+          button.querySelector("strong")?.textContent.trim() ===
+          "AI 技术文章 · 编辑布局验收",
+      );
+    await until(layoutDraft);
+    layoutDraft().click();
     await until(() => !doc.querySelector("#composeGrid").hidden);
     await until(() => doc.querySelector("#output").textContent.length > 100);
     await tick();

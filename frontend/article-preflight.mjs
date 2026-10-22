@@ -390,7 +390,8 @@ export function analyzeArticle({
   )
     throw new TypeError("Invalid article preflight input");
   const source = content.slice(0, MAX_ANALYSIS_LENGTH);
-  let truncated = source.length < content.length;
+  let truncated = source.length < content.length,
+    adviceTruncated = false;
   const issues = [];
   const seen = new Set();
   const add = (issue) => {
@@ -400,12 +401,30 @@ export function analyzeArticle({
     seen.add(id);
     if (
       issues.length >= MAX_REPORT_ISSUES &&
-      issue.code !== "analysis-truncated"
+      !["analysis-truncated", "advice-truncated"].includes(issue.code)
     ) {
-      truncated = true;
-      return;
+      if (issue.severity !== "blocker") {
+        adviceTruncated = true;
+        return;
+      }
+      // Advice cannot consume the capacity reserved for actual upload errors.
+      const adviceIndex = issues.findIndex(
+        (item) => item.severity !== "blocker",
+      );
+      if (adviceIndex === -1) {
+        truncated = true;
+        return;
+      }
+      issues.splice(adviceIndex, 1);
+      adviceTruncated = true;
     }
-    issues.push({ id, ...issue, field });
+    // Uncertain findings are advice for the author, not a draft-upload gate.
+    issues.push({
+      id,
+      ...issue,
+      field,
+      severity: issue.severity === "confirm" ? "info" : issue.severity,
+    });
   };
   const { mask, lines, fences } = scanCodeRegions(source);
   const assetMap = new Map(
@@ -568,7 +587,7 @@ export function analyzeArticle({
     const overlapsPrivacy = (issue) =>
       privacy.some((item) => issue.from < item.to && issue.to > item.from);
     const proofreading = analyzeMarkdown(text, { ignoredWords });
-    truncated ||= proofreading.truncated;
+    adviceTruncated ||= proofreading.truncated;
     for (const issue of proofreading.issues)
       if (!overlapsPrivacy(issue))
         add({
@@ -624,6 +643,13 @@ export function analyzeArticle({
     truncated ||= rendered.length < html.length;
     htmlFindings(rendered, add);
   }
+  if (adviceTruncated)
+    add({
+      code: "advice-truncated",
+      severity: "info",
+      field: "content",
+      message: "建议较多，报告已省略部分提醒；不影响同步到草稿箱",
+    });
   if (truncated)
     add({
       code: "analysis-truncated",
@@ -638,6 +664,6 @@ export function analyzeArticle({
     issues,
     counts,
     canSync: counts.blocker === 0,
-    truncated,
+    truncated: truncated || adviceTruncated,
   };
 }

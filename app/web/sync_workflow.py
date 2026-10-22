@@ -399,9 +399,9 @@ class SyncWorkflow:
             raise EditorError('发布前检查存在阻断项，请修正后重新检查', 409)
         if not _same_hash(report['fingerprint'], fingerprint):
             raise RevisionConflict()
-        required = {issue['id'] for issue in report['issues'] if issue['severity'] == 'confirm'}
-        if not required.issubset(acknowledged):
-            raise EditorError('请逐项确认当前版本的发布前检查提示', 409)
+        # Recommendations, including legacy ``confirm`` findings, must not
+        # prevent writing an editable WeChat draft. Keep accepting the old
+        # acknowledgement field while enforcing the exact snapshot and blockers.
 
     def start(self, draft_id, payload):
         if not isinstance(payload, dict):

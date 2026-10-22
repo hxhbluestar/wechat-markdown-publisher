@@ -1,10 +1,10 @@
 """Server-verifiable publication gates, without mutation or network access.
 
 The fingerprint binds private source/metadata, revision, complete referenced
-asset bytes, rendered HTML, renderer and target account. It is an acknowledgement
-token, not a substitute for locking and rechecking the same snapshot at sync.
-``can_sync`` means no definite blockers; the caller must separately require each
-confirmation issue to be acknowledged against this exact fingerprint.
+asset bytes, rendered HTML, renderer and target account. It binds the checked
+snapshot and does not replace locking and rechecking the same snapshot at sync.
+``can_sync`` means no definite blockers. Advisory findings remain visible without
+requiring an acknowledgement before syncing to the WeChat draft box.
 
 Offsets are UTF-16 for browser editors. Public messages never quote matched
 credentials, usernames, URLs or missing paths. This is structural validation,
@@ -178,10 +178,10 @@ def preflight_article(store, draft, source_html, render_version, account_id):
     source_html = source_html if valid_html else ''
     issues, issue_keys, assets, asset_state = [], set(), {}, {}
     reference_counts = {'content': Counter(), 'html': Counter()}
-    truncated = False
+    advisories_truncated, blockers_truncated = False, False
 
     def issue(code, severity, field, message, start=None, end=None):
-        nonlocal truncated
+        nonlocal advisories_truncated, blockers_truncated
         original = content if field == 'content' else source_html if field == 'html' else str(metadata.get(field, ''))
         start16 = _utf16(original, start) if start is not None else None
         end16 = _utf16(original, end) if end is not None else None
@@ -189,8 +189,18 @@ def preflight_article(store, draft, source_html, render_version, account_id):
         if key in issue_keys:
             return
         if len(issues) >= MAX_ISSUES:
-            truncated = True
-            return
+            if severity != 'blocker':
+                advisories_truncated = True
+                return
+            # Analysis continues after the display limit. Reserve report space
+            # for definite failures discovered after many advisory findings.
+            advisory = next((index for index in range(len(issues) - 1, -1, -1)
+                             if issues[index]['severity'] != 'blocker'), None)
+            if advisory is None:
+                blockers_truncated = True
+                return
+            issues.pop(advisory)
+            advisories_truncated = True
         issue_keys.add(key)
         item = {'id': f'server-{code}-{field}-{start16 if start16 is not None else 0}',
                 'code': code, 'severity': severity, 'field': field, 'message': message}
@@ -234,7 +244,7 @@ def preflight_article(store, draft, source_html, render_version, account_id):
         if state.get('error'):
             issue(state['error'], 'blocker', field, '图片缺失、损坏或超过本地验证限制；已停止同步。', start, end)
         elif list(_private_findings(relative)):
-            issue('privacy-asset-name', 'confirm', field, '素材文件名包含潜在敏感信息 ' + MASKED + '，请确认或重命名。', start, end)
+            issue('privacy-asset-name', 'info', field, '素材文件名包含潜在敏感信息 ' + MASKED + '，建议核对或重命名。', start, end)
         else:
             assets[relative] = {'path': relative, 'sha256': state['sha256'], 'size': state['size']}
         if field in reference_counts and not state.get('error'):
@@ -267,7 +277,7 @@ def preflight_article(store, draft, source_html, render_version, account_id):
         masked = re.sub(r'<!--[\s\S]*?-->|<(pre|code)\b[^>]*>[\s\S]*?</\1\s*>',
                         lambda match: re.sub(r'[^\r\n]', ' ', match[0]), masked, flags=re.I)
         if unclosed:
-            issue('code-fence-unclosed', 'confirm', 'content', '代码围栏未闭合，请核对原文。')
+            issue('code-fence-unclosed', 'info', 'content', '代码围栏未闭合，建议核对原文。')
         try:
             for start, end, source in _image_references(masked):
                 check_asset(html.unescape(content[start:end]), 'content', start, end)
@@ -276,12 +286,12 @@ def preflight_article(store, draft, source_html, render_version, account_id):
     for field, value in [('content', content), ('title', str(metadata.get('title', ''))), ('digest', str(metadata.get('digest', ''))),
                          ('author', str(metadata.get('author', '')))]:
         for code, start, end in _private_findings(value):
-            issue(code, 'confirm', field, '检测到潜在敏感信息 ' + MASKED + '，请确认是否适合公开。', start, end)
+            issue(code, 'info', field, '检测到潜在敏感信息 ' + MASKED + '，建议在公开发布前核对。', start, end)
         prose = _protected_markdown(value)[0] if field == 'content' else value
         for match in re.finditer(r'\b(?:TODO|FIXME|TBD)\b|待补充|待完善|占位(?:符|内容)?|请在此填写', prose, re.I):
-            issue('placeholder', 'confirm', field, '检测到待完成或占位内容，请逐项核对。', match.start(), match.end())
+            issue('placeholder', 'info', field, '检测到待完成或占位内容，建议核对。', match.start(), match.end())
     if not str(metadata.get('source_url', '')).strip():
-        issue('source-empty', 'confirm', 'source_url', '原文来源链接为空，请确认原创或补充转载来源。')
+        issue('source-empty', 'info', 'source_url', '原文来源链接为空，转载文章建议补充来源。')
 
     if valid_html and source_html.strip() and not html_oversize:
         try:
@@ -349,7 +359,7 @@ def preflight_article(store, draft, source_html, render_version, account_id):
                     if font and fixed < max(font, line_px or font) * minimum_lines:
                         issue('layout-clipping', 'blocker', 'html', '文字容器高度低于已知文字高度并隐藏溢出，会裁掉正文。', start, end)
                     else:
-                        issue('layout-fixed-height', 'confirm', 'html', '文字容器固定高度并隐藏溢出，请核对内容是否完整可见。', start, end)
+                        issue('layout-fixed-height', 'info', 'html', '文字容器固定高度并隐藏溢出，建议核对内容是否完整可见。', start, end)
             for relative, expected in reference_counts['content'].items():
                 if reference_counts['html'][relative] < expected:
                     issue('image-render-missing', 'blocker', 'html', '正文图片未全部保留在排版结果中，请重新生成并核对。')
@@ -383,9 +393,12 @@ def preflight_article(store, draft, source_html, render_version, account_id):
                         issue('diagram-unresolved' if language == 'mermaid' else 'math-unresolved', 'blocker', 'html', '图表或公式源码尚未转换为发布格式。')
             if soup.find('math') or soup.select_one('.katex'):
                 issue('math-device-preview', 'info', 'html', '已渲染公式仍需在真实微信端核对显示。')
-    if truncated:
+    if advisories_truncated:
+        issues.append({'id': 'server-advisories-truncated', 'code': 'advisories-truncated', 'severity': 'info',
+                       'field': 'content', 'message': '建议数量较多，仅显示部分提醒；不影响同步到草稿箱。'})
+    if blockers_truncated:
         issues.append({'id': 'server-report-truncated', 'code': 'report-truncated', 'severity': 'blocker',
-                       'field': 'content', 'message': '问题数量超出报告上限，验证未完成，请分批修复后重试。'})
+                       'field': 'content', 'message': '阻断问题数量超出报告上限，已停止同步，请分批修复后重试。'})
     private_manifest = {'version': 1, 'draft_id': draft_id, 'revision': draft.get('revision'), 'content': content,
                         'metadata': metadata, 'assets': asset_state, 'html_sha256': hashlib.sha256(_bytes(source_html)).hexdigest(),
                         'render_version': render_version, 'expected_renderer': RENDER_VERSION, 'account_id': account_id}

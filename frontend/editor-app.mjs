@@ -1,4 +1,8 @@
 import { createDraftSaver } from "./draft-save.mjs";
+import {
+  createMarkdownImporter,
+  connectMarkdownFilePicker,
+} from "./markdown-import.mjs";
 import { syncDialogMarkup, connectEditorLayout } from "./editor-layout.mjs";
 import {
   createRecoveryController,
@@ -125,9 +129,9 @@ document.querySelector("#app").innerHTML = `
       <a class="editor-brand" href="/"><img src="/logo.png" alt="" width="42" height="42"><span><strong>星河炸鸡</strong><small>Markdown 创作</small></span></a>
       <div class="sidebar-actions">
         <button class="primary-action" id="newDraft" type="button">＋ 新建文章</button>
-        <button class="quiet-action" id="importMarkdown" type="button">导入文章</button>
+        <button class="quiet-action" id="importMarkdown" type="button">导入 Markdown</button>
 ${rocmImportMarkup()}
-        <input id="markdownFile" type="file" accept=".md,.markdown,text/markdown,text/plain" hidden>
+        <input id="markdownFile" type="file" accept=".md,.markdown,text/markdown" hidden>
       </div>
       <button class="wechat-config-entry needs-binding" id="wechatConfigEntry" type="button">
         <span class="wechat-entry-icon">公众号</span>
@@ -151,8 +155,8 @@ ${rocmImportMarkup()}
           <div><small id="saveState">尚未选择稿件</small><small id="recoveryState" aria-live="polite"></small><strong id="currentTitle">创作区</strong></div>
         </div>
         <div class="toolbar-actions">
-${workflowMarkup({preflightEntry: false})}
-${syncProgressMarkup({entry: false})}
+${workflowMarkup({ preflightEntry: false })}
+${syncProgressMarkup({ entry: false })}
           <button class="toolbar-button" id="saveDraft" type="button" disabled>保存</button>
 ${proofreadingMarkup()}
           <button class="sync-button" id="openSyncDialog" type="button" disabled>同步到公众号</button>
@@ -165,7 +169,7 @@ ${proofreadingMarkup()}
 
       <section class="empty-editor" id="emptyEditor">
         <span>✦</span><h1>写好的 Markdown，直接在这里完成排版与发布。</h1>
-        <p>导入文档或新建文章，历史归档不会被修改。</p>
+        <p>选择 .md 文件即可开始编辑，也可以新建文章。</p>
         <button class="primary-action" type="button" data-open-import>选择 Markdown</button>
       </section>
 
@@ -371,7 +375,7 @@ const query = (t) => document.querySelector(t),
   };
 const editorLayout = connectEditorLayout(document, {
   hasDraft: () => !!state.current,
-  getTitle: () => state.current ? readMetadata().title : '',
+  getTitle: () => (state.current ? readMetadata().title : ""),
   onOpenSync: () => renderPreflight(),
 });
 async function request(t, e = {}) {
@@ -924,9 +928,7 @@ function selectWorkflowIssue(issue) {
       scrollIntoView: true,
     });
     state.editor?.focus();
-  } else if (
-    ["title", "digest", "source_url"].includes(issue.field)
-  ) {
+  } else if (["title", "digest", "source_url"].includes(issue.field)) {
     showSourcePane("settings");
     ({
       title: ui.titleInput,
@@ -1205,11 +1207,19 @@ function renderPublishState() {
       ? ""
       : "直接发布默认关闭，可通过服务端配置开启"));
 }
-async function openDraft(t) {
+async function openDraft(t, { preserveChanges = false } = {}) {
+  const sourceId = state.current?.id || null;
+  if (preserveChanges && state.dirty)
+    throw new Error("当前输入已变化，未切换稿件");
   if (state.dirty) await recovery.flush().catch(() => {});
   if (state.dirty && !window.confirm("当前修改尚未保存，确定切换稿件吗？"))
     return;
   const e = await request(`/api/editor/drafts/${encodeURIComponent(t)}`);
+  if (
+    preserveChanges &&
+    (state.dirty || (state.current?.id || null) !== sourceId)
+  )
+    throw new Error("当前输入或稿件已变化，未切换稿件");
   ((state.current = e),
     (state.assets = []),
     (ui.empty.hidden = !0),
@@ -1292,15 +1302,7 @@ async function createDraft(
     });
   (await loadDrafts(), await openDraft(r.id), toast("已创建本地稿件"));
 }
-async function importMarkdown(t) {
-  try {
-    toast(`正在导入 ${t.name}…`);
-    const e = await readMarkdownFile(t);
-    (await createDraft(e, t.name), toast(`已导入 ${t.name}`));
-  } catch (e) {
-    toast(e.message, !0);
-  }
-} // Shared by Save, Ctrl+S, import, sync and the proofreading dialog.
+// Shared by Save, Ctrl+S, import, sync and the proofreading dialog.
 // Queue requests so every PUT uses the revision from the previous response.
 async function uploadAsset(t, e, draftId = state.current?.id) {
   if (!draftId) throw new Error("请先选择稿件");
@@ -1592,16 +1594,37 @@ connectRocmImport(document, {
     toast("已导入 ROCm 博客，正文与配图已保存到本地");
   },
 });
-query("#importMarkdown").addEventListener("click", () =>
-  workflow.open("import"),
-);
-query("[data-open-import]").addEventListener("click", () =>
-  workflow.open("import"),
-);
-query("#markdownFile").addEventListener("change", async (t) => {
-  const e = t.currentTarget,
-    n = e.files?.[0];
-  (n && (await importMarkdown(n)), (e.value = ""));
+const importMarkdown = createMarkdownImporter({
+  getDraftId: () => state.current?.id || null,
+  isDirty: () => state.dirty,
+  readFile: readMarkdownFile,
+  saveDraft,
+  createDraft: async (content, name) => {
+    if (!state.config)
+      throw new Error("编辑服务未连接，请重启本地服务后刷新页面");
+    return request("/api/editor/drafts", {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        source_name: name,
+        title: inferTitle(content, name),
+      }),
+    });
+  },
+  refreshDrafts: loadDrafts,
+  openDraft,
+});
+connectMarkdownFilePicker(document, {
+  onFile: async (file) => {
+    toast(`正在导入 ${file.name}…`);
+    const result = await importMarkdown(file);
+    toast(
+      result.opened
+        ? `已导入 ${file.name}`
+        : `已导入 ${file.name}，可从稿件列表打开`,
+    );
+  },
+  onError: (error) => toast(error.message, true),
 });
 ui.list.addEventListener("click", (t) => {
   const e = t.target.closest("[data-delete-draft]");

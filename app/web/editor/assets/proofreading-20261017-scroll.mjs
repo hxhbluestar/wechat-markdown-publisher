@@ -278,11 +278,8 @@ export function connectProofreading(
   function beforeSync() {
     if (!getDraftId()) return true;
     check();
-    if (last.result.issues.some((issue) => issue.confidence === "high")) {
-      open();
-      message("同步前请先核对易错词：应用建议，或忽略确认无误的词。", true);
-      return false;
-    }
+    // Local dictionary matches are optional advice; keep their marks and toolbar
+    // count available without interrupting synchronization or changing the text.
     return true;
   }
   get("proofreadDraft").addEventListener("click", open);

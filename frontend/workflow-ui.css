@@ -39,7 +39,7 @@
   cursor: pointer;
 }
 .workflow-dialog button.is-active,
-.workflow-dialog #workflowAccept {
+.workflow-dialog #workflowRecheck {
   background: #005a9c;
   color: #fff;
 }
@@ -144,7 +144,7 @@
 .editor-toolbar .toolbar-actions {
   flex-wrap: wrap;
 }
-.workflow-dialog #workflowAccept[hidden] {
+.workflow-dialog #workflowRecheck[hidden] {
   display: none;
 }
 @media (max-width: 700px) {

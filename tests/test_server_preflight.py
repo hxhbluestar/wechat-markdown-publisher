@@ -192,6 +192,53 @@ class ServerPreflightTests(unittest.TestCase):
         self.assertEqual(first_ids, second_ids)
         self.assertTrue(all(i['id'].startswith('server-') for i in report['issues']))
 
+    def test_advisory_checks_report_info_without_blocking_draft_sync(self):
+        draft = copy.deepcopy(self.draft)
+        draft['metadata']['source_url'] = ''
+        draft['content'] = '# Article\n\nTODO check 192.168.12.19\n\n```bash\necho example\n'
+        report = self.report(draft, '<h1>Article</h1><p style="height:80px;overflow:hidden">TODO check 192.168.12.19</p>')
+        expected = {'source-empty', 'placeholder', 'privacy-private-ip', 'code-fence-unclosed', 'layout-fixed-height'}
+        self.assertTrue(expected <= self.codes(report))
+        self.assertTrue(report['can_sync'])
+        self.assertEqual(report['counts']['blocker'], 0)
+        self.assertEqual(report['counts']['confirm'], 0)
+        self.assertGreaterEqual(report['counts']['info'], len(expected))
+        self.assertTrue(all(issue['severity'] == 'info' for issue in report['issues']))
+
+    def test_advisory_report_limit_does_not_block_sync(self):
+        draft = {**self.draft, 'content': '# Article\n\n' + 'TODO\n' * (server_preflight.MAX_ISSUES + 20)}
+        report = self.report(draft)
+        self.assertTrue(report['can_sync'])
+        self.assertEqual(report['counts']['blocker'], 0)
+        self.assertIn('advisories-truncated', self.codes(report))
+        self.assertLessEqual(len(report['issues']), server_preflight.MAX_ISSUES + 1)
+
+    def test_late_blockers_are_preserved_when_advisories_fill_the_report(self):
+        draft = {**self.draft, 'content': '# Article\n\n' + 'TODO\n' * (server_preflight.MAX_ISSUES + 20)}
+        for markup, expected in [('<script>example()</script>', 'html-unsafe'),
+                                 ('<img src="images/missing.png">', 'image-missing')]:
+            with self.subTest(expected=expected):
+                report = self.report(draft, markup)
+                self.assertFalse(report['can_sync'])
+                self.assertIn(expected, self.codes(report))
+                self.assertIn('advisories-truncated', self.codes(report))
+                self.assertGreater(report['counts']['blocker'], 0)
+
+    def test_incomplete_structural_analysis_remains_blocked_after_advisory_overflow(self):
+        draft = {**self.draft, 'content': '# Article\n\n' + 'TODO\n' * (server_preflight.MAX_ISSUES + 20)}
+        with patch.object(server_preflight, 'MAX_HTML_NODES', 1):
+            report = self.report(draft, '<p>One</p><p>Two</p>')
+        self.assertFalse(report['can_sync'])
+        self.assertIn('html-analysis-limit', self.codes(report))
+
+    def test_blocker_report_overflow_stays_bounded_and_cannot_enable_sync(self):
+        with patch.object(server_preflight, 'MAX_ISSUES', 3):
+            report = self.report(source_html='<script>example()</script>' * 5)
+        self.assertFalse(report['can_sync'])
+        self.assertIn('html-unsafe', self.codes(report))
+        self.assertIn('report-truncated', self.codes(report))
+        self.assertLessEqual(len(report['issues']), 4)
+
     def test_symlinked_asset_outside_draft_cannot_be_read_or_hashed(self):
         external = Path(self.tmp.name) / 'outside.png'
         external.write_bytes(png())

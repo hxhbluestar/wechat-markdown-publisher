@@ -27,7 +27,10 @@ class WorkflowAPI(unittest.TestCase):
             s.bind(('127.0.0.1',0));port=s.getsockname()[1]
         cls.url=f'http://127.0.0.1:{port}'
         env={**os.environ,'ARCHIVE_PORT':str(port),'ARCHIVE_NO_OPEN':'1','WECHAT_DRAFTS_DIR':str(cls.data/'drafts'),'WECHAT_ARCHIVE_DIR':str(cls.data/'archive'),'WECHAT_ACCOUNTS_FILE':str(cls.data/'accounts.json'),'WECHAT_NETWORK_CONFIG':str(cls.data/'disabled-network.json')}
-        cls.proc=subprocess.Popen([sys.executable,'-X','utf8','-B',str(ROOT/'app/web/server.py')],cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        # Embedded Windows Python may pin imports to the installed app in its
+        # ._pth file. Always exercise this checkout's server and dependencies.
+        bootstrap='import runpy,sys;sys.path.insert(0,sys.argv[1]);runpy.run_path(sys.argv[2],run_name="__main__")'
+        cls.proc=subprocess.Popen([sys.executable,'-X','utf8','-B','-c',bootstrap,str(ROOT/'app/web'),str(ROOT/'app/web/server.py')],cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         for _ in range(100):
             try:
                 with urllib.request.urlopen(cls.url+'/api/editor/config',timeout=.5) as r: cls.token=json.load(r)['csrf_token']
@@ -119,18 +122,20 @@ class WorkflowAPI(unittest.TestCase):
 
     def test_async_sync_requires_bound_preflight_and_network_guard_blocks_fixture(self):
         import hashlib
-        _,d=self.request('/api/editor/drafts',{'content':'# Synthetic\n\nBody\n\n![图](images/x.png)'})
+        _,d=self.request('/api/editor/drafts',{'content':'# Synthetic\n\nTODO check 192.168.12.19\n\n![图](images/x.png)'})
         png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg=='
         self.assertEqual(self.request('/api/editor/drafts/'+d['id']+'/assets',{'path':'images/x.png','data':png})[0],201)
-        _,d=self.request('/api/editor/drafts/'+d['id'],{'content':d['content'],'metadata':{**d['metadata'],'cover':'images/x.png','wechat_account_id':'account-123456789abc','source_url':'https://example.org/source'},'revision':d['revision']},'PUT')
-        html='<h1>Synthetic</h1><p>Body</p><img src="images/x.png">'
+        _,d=self.request('/api/editor/drafts/'+d['id'],{'content':d['content'],'metadata':{**d['metadata'],'cover':'images/x.png','wechat_account_id':'account-123456789abc','source_url':''},'revision':d['revision']},'PUT')
+        html='<h1>Synthetic</h1><p>TODO check 192.168.12.19</p><img src="images/x.png">'
         _,config=self.request('/api/editor/config')
         payload={'html':html,'account_id':'account-123456789abc','render_version':config['render_version']}
         status,report=self.request('/api/editor/drafts/'+d['id']+'/preflight',payload)
         self.assertEqual(status,200);self.assertTrue(report['can_sync'])
+        self.assertEqual(report['counts']['confirm'],0)
+        self.assertTrue({'placeholder','privacy-private-ip','source-empty'} <= {i['code'] for i in report['issues']})
         payload.update(source_hash=hashlib.sha256(d['content'].encode()).hexdigest(),theme=d['metadata']['theme'],palette=d['metadata']['palette'],typography={k:d['metadata'][k] for k in ('font_family','font_size','code_font_size','code_wrap','table_mode','caption_font_size','table_font_size')})
         self.assertEqual(self.request('/api/wechat/drafts/'+d['id']+'/sync',payload)[0],409)
-        payload.update(preflight_fingerprint=report['fingerprint'],acknowledged=[i['id'] for i in report['issues'] if i['severity']=='confirm'])
+        payload.update(preflight_fingerprint=report['fingerprint'],acknowledged=[])
         # An old six-field editor cannot bind the code-size setting to this
         # asynchronous snapshot. It must refresh before any job is created.
         old_typography={key:value for key,value in payload['typography'].items() if key!='code_font_size'}

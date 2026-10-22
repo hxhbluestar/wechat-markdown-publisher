@@ -5,7 +5,6 @@ import {
   createContentTemplate,
   createTitleCandidates,
 } from "./technical-writing.mjs";
-import { createPreflightAcknowledgements } from "./preflight-ack.mjs";
 
 const PANES = [
   ["recovery", "自动恢复"],
@@ -15,9 +14,9 @@ const PANES = [
   ["preflight", "发布检查"],
   ["technical", "技术写作"],
 ];
-export function workflowMarkup({preflightEntry = true} = {}) {
-  return `<button type="button" class="toolbar-button" id="openWorkflow">创作工具<span id="recoveryCount"></span></button>${preflightEntry ? '<button type="button" class="toolbar-button" id="openPreflight">发布检查</button>' : ''}
-<dialog id="workflowDialog" class="workflow-dialog"><header><div><small>本机创作工作台</small><h2 id="workflowTitle">创作工具</h2></div><button type="button" id="closeWorkflow" aria-label="关闭创作工具">×</button></header><nav>${PANES.map(([id, label]) => `<button type="button" data-workflow-pane="${id}">${label}</button>`).join("")}</nav><div id="workflowBody" class="workflow-body"></div><footer><span id="workflowMessage" role="status"></span><button type="button" id="workflowAccept" hidden disabled>确认并继续同步</button></footer></dialog>
+export function workflowMarkup({ preflightEntry = true } = {}) {
+  return `<button type="button" class="toolbar-button" id="openWorkflow">创作工具<span id="recoveryCount"></span></button>${preflightEntry ? '<button type="button" class="toolbar-button" id="openPreflight">发布检查</button>' : ""}
+<dialog id="workflowDialog" class="workflow-dialog"><header><div><small>本机创作工作台</small><h2 id="workflowTitle">创作工具</h2></div><button type="button" id="closeWorkflow" aria-label="关闭创作工具">×</button></header><nav>${PANES.map(([id, label]) => `<button type="button" data-workflow-pane="${id}">${label}</button>`).join("")}</nav><div id="workflowBody" class="workflow-body"></div><footer><span id="workflowMessage" role="status"></span><button type="button" id="workflowRecheck" hidden disabled>重新检查</button></footer></dialog>
 <dialog id="conflictDialog" class="workflow-dialog"><header><h2>保存冲突 · 当前输入已保留</h2><button type="button" id="closeConflict">关闭</button></header><p>另一个窗口更新了稿件。比较后可另存副本，原稿不会被覆盖。</p><div class="workflow-compare"><section><h3>当前输入</h3><pre id="conflictLocal"></pre></section><section><h3>后端已保存版本</h3><pre id="conflictRemote"></pre></section></div><footer><button type="button" id="saveConflictCopy">另存为新副本</button></footer></dialog>`;
 }
 
@@ -26,18 +25,13 @@ export function connectWorkflowUI(doc, a) {
     dialog = $("#workflowDialog"),
     body = $("#workflowBody"),
     message = $("#workflowMessage"),
-    accept = $("#workflowAccept");
+    recheck = $("#workflowRecheck");
   let pane = "recovery",
     pendingUpload = null,
-    report = null,
-    syncResolve = null,
     conflict = null,
     conflictBusy = false,
     destroyed = false,
     viewGeneration = 0;
-  const acknowledgements =
-    a.acknowledgements ||
-    createPreflightAcknowledgements({ storage: a.storage, subtle: a.subtle });
   const listeners = [];
   const on = (node, event, fn) => {
     node.addEventListener(event, fn);
@@ -78,33 +72,24 @@ export function connectWorkflowUI(doc, a) {
     !destroyed &&
     viewGeneration === ticket &&
     (!expectedPane || pane === expectedPane);
-  const resolveSync = (value) => {
-    const done = syncResolve;
-    syncResolve = null;
-    done?.(value);
-  };
   function invalidate() {
     viewGeneration++;
-    report = null;
     body.onchange = null;
-    accept.hidden = true;
-    accept.disabled = true;
-    resolveSync(null);
+    recheck.hidden = true;
+    recheck.disabled = true;
   }
   function close() {
     invalidate();
     dialog.close();
   }
-  async function open(id = "recovery", options = {}) {
+  async function open(id = "recovery") {
     if (destroyed) return;
-    if (!options.forSync) resolveSync(null);
     const ticket = ++viewGeneration;
     pane = id;
-    report = null;
     body.onchange = null;
     message.textContent = "";
-    accept.hidden = true;
-    accept.disabled = true;
+    recheck.hidden = true;
+    recheck.disabled = true;
     body.replaceChildren();
     $("#workflowTitle").textContent =
       PANES.find((p) => p[0] === id)?.[1] || "创作工具";
@@ -124,9 +109,8 @@ export function connectWorkflowUI(doc, a) {
       )(ticket);
     } catch (e) {
       if (active(ticket, id)) {
-        accept.disabled = true;
+        recheck.disabled = true;
         fail(e);
-        if (id === "preflight") resolveSync(null);
       }
     }
   }
@@ -429,7 +413,7 @@ export function connectWorkflowUI(doc, a) {
         "稿件、内容、设置、公众号或排版器已经变化，请保存后重新检查",
       );
   }
-  async function renderCheck(ticket) {
+  async function collectCheck(ticket) {
     const id = current().id;
     message.textContent = "正在保存当前修改并生成发布检查…";
     await a.beforeImport?.();
@@ -499,58 +483,53 @@ export function connectWorkflowUI(doc, a) {
         field: "settings",
         message: "服务端未提供有效的版本指纹，不能继续同步",
       });
-    await showReport({ ...remote, html, issues }, { saved, ticket });
+    return { value: { ...remote, html, issues }, saved };
+  }
+  async function renderCheck(ticket) {
+    const checked = await collectCheck(ticket);
+    if (checked)
+      await showReport(checked.value, { saved: checked.saved, ticket });
   }
   async function showReport(value, options = {}) {
     if (destroyed) return;
     const ticket = options.ticket ?? ++viewGeneration;
     if (options.ticket === undefined) pane = "preflight";
     if (!active(ticket, "preflight")) return;
-    const saved = options.saved || snapshot(),
-      groups = [],
+    $("#workflowTitle").textContent = "发布检查";
+    for (const b of dialog.querySelectorAll("[data-workflow-pane]"))
+      b.classList.toggle("is-active", b.dataset.workflowPane === "preflight");
+    const groups = [],
       deduplicated = new Map();
-    for (const issue of value.issues) {
+    for (const original of value.issues) {
+      const issue = {
+        ...original,
+        severity: original.severity === "confirm" ? "info" : original.severity,
+      };
       const key =
-        issue.severity === "confirm" && typeof issue.code === "string"
+        typeof issue.code === "string"
           ? JSON.stringify([
+              issue.severity,
               issue.code,
               issue.field,
-              typeof issue.from,
-              String(issue.from),
-              typeof issue.to,
-              String(issue.to),
+              issue.from,
+              issue.to,
             ])
           : null;
       if (key && deduplicated.has(key)) {
         deduplicated.get(key).issues.push(issue);
         continue;
       }
-      const group = { issue, issues: [issue], input: null, touched: false };
+      const group = { issue, issues: [issue] };
       groups.push(group);
       if (key) deduplicated.set(key, group);
     }
-    const context = {
-      ...saved,
-      fingerprint: value.fingerprint,
-      html: value.html || "",
-      issues: groups.map((group) => group.issue),
-    };
-    const shown = {
-      value,
-      context,
-      saved,
-      ticket,
-      groups,
-      accepting: false,
-      stale: false,
-    };
-    report = shown;
     body.replaceChildren();
-    accept.hidden = false;
-    const counts = { blocker: 0, confirm: 0, info: 0 };
+    recheck.hidden = false;
+    recheck.disabled = false;
+    const counts = { blocker: 0, info: 0 };
     for (const { issue } of groups) counts[issue.severity]++;
     note(
-      `阻断 ${counts.blocker} · 需作者确认 ${counts.confirm} · 建议 ${counts.info}。检查为本机静态规则，不能保证覆盖所有错字、事实或微信真机差异。`,
+      `阻断 ${counts.blocker} · 建议 ${counts.info}。建议仅供参考，不影响同步到草稿箱。`,
     );
     for (const group of groups) {
       const issue = group.issue,
@@ -561,71 +540,26 @@ export function connectWorkflowUI(doc, a) {
       row.append(
         el(
           "strong",
-          { blocker: "阻断", confirm: "确认", info: "建议" }[issue.severity] +
-            " · " +
-            messages,
+          (issue.severity === "blocker" ? "阻断" : "建议") + " · " + messages,
         ),
       );
-      if (issue.severity === "confirm") {
-        const label = el("label"),
-          input = el("input");
-        input.type = "checkbox";
-        input.dataset.ack = issue.id;
-        group.input = input;
-        label.append(input, el("span", "已核对此项"));
-        row.append(label);
-      }
       if (
         Number.isInteger(issue.from) ||
-        ["title", "digest", "source_url", "assets", "account", "cover"].includes(issue.field)
+        [
+          "title",
+          "digest",
+          "source_url",
+          "assets",
+          "account",
+          "cover",
+        ].includes(issue.field)
       )
         row.append(button("定位", () => a.selectIssue?.(issue)));
       body.append(row);
     }
-    const update = (event) => {
-      if (report !== shown || !active(ticket, "preflight")) return;
-      const touched = groups.find((group) => group.input === event?.target);
-      if (touched) touched.touched = true;
-      shown.stale = !fresh(saved);
-      accept.disabled =
-        shown.accepting ||
-        shown.stale ||
-        groups.some(
-          (group) =>
-            group.issue.severity === "blocker" ||
-            (group.input && !group.input.checked),
-        );
-      if (shown.stale)
-        message.textContent = "稿件或设置已经变化，请保存后重新检查";
-    };
-    shown.update = update;
-    body.onchange = update;
-    update();
-    message.textContent = "确认只对应本次内容、素材、目标公众号与渲染版本。";
-    let accepted = new Set();
-    try {
-      accepted = await acknowledgements.accepted(context);
-    } catch {
-      /* Preference storage never grants approval on failure. */
-    }
-    if (report !== shown || !active(ticket, "preflight") || shown.accepting)
-      return;
-    if (!fresh(saved)) {
-      shown.stale = true;
-      update();
-      return;
-    }
-    let preselected = 0;
-    for (const group of groups)
-      if (group.input && !group.touched && accepted?.has?.(group.issue.id)) {
-        group.input.checked = true;
-        preselected++;
-      }
-    if (preselected)
-      note(
-        "此前已确认的相同内容已预选；请核对本次报告，仍需点击“确认并继续同步”。",
-      );
-    update();
+    message.textContent = counts.blocker
+      ? "请修复阻断项后重新同步；建议不影响同步。"
+      : "建议不影响同步到草稿箱，可关闭报告后直接同步。";
   }
   function renderTechnical() {
     const d = current(),
@@ -735,52 +669,7 @@ export function connectWorkflowUI(doc, a) {
   on(dialog, "close", invalidate);
   for (const b of dialog.querySelectorAll("[data-workflow-pane]"))
     on(b, "click", () => open(b.dataset.workflowPane));
-  on(accept, "click", async () => {
-    const shown = report;
-    if (
-      accept.disabled ||
-      !shown ||
-      shown.accepting ||
-      !active(shown.ticket, "preflight")
-    )
-      return;
-    shown.update();
-    if (accept.disabled) return;
-    shown.accepting = true;
-    accept.disabled = true;
-    const checked = shown.groups.filter((group) => group.input?.checked),
-      ids = [
-        ...new Set(
-          checked.flatMap((group) => group.issues.map((issue) => issue.id)),
-        ),
-      ];
-    try {
-      requireFresh(shown.saved);
-      let remembered = false;
-      try {
-        remembered = await acknowledgements.remember(
-          shown.context,
-          checked.map((group) => group.issue.id),
-        );
-      } catch {}
-      if (report !== shown || !active(shown.ticket, "preflight")) return;
-      requireFresh(shown.saved);
-      if (!remembered)
-        a.toast?.("本次已明确确认；浏览器未能保存为下次预选。", false);
-      const result = { ...shown.value, acknowledged: ids },
-        done = syncResolve;
-      syncResolve = null;
-      close();
-      done?.(result);
-    } catch (error) {
-      if (report === shown && active(shown.ticket, "preflight")) {
-        shown.stale = true;
-        accept.disabled = true;
-        fail(error);
-        resolveSync(null);
-      }
-    }
-  });
+  on(recheck, "click", () => open("preflight"));
   on($("#closeConflict"), "click", () => $("#conflictDialog").close());
   on($("#saveConflictCopy"), "click", async () => {
     if (!conflict || conflictBusy || destroyed) return;
@@ -810,13 +699,30 @@ export function connectWorkflowUI(doc, a) {
     showReport,
     refresh: refreshRecoveryCount,
     conflictSave,
-    prepareSync: () => {
-      if (destroyed) return Promise.resolve(null);
-      resolveSync(null);
-      return new Promise((resolve) => {
-        syncResolve = resolve;
-        void open("preflight", { forSync: true });
-      });
+    prepareSync: async () => {
+      if (destroyed) return null;
+      const ticket = ++viewGeneration;
+      pane = "preflight";
+      recheck.hidden = true;
+      recheck.disabled = true;
+      const checked = await collectCheck(ticket);
+      if (!checked || !active(ticket, "preflight")) return null;
+      requireFresh(checked.saved);
+      if (checked.value.issues.some((issue) => issue.severity === "blocker")) {
+        await showReport(checked.value, { saved: checked.saved, ticket });
+        if (active(ticket, "preflight") && !dialog.hasAttribute("open"))
+          dialog.showModal();
+        return null;
+      }
+      const advice = checked.value.issues.filter(
+        (issue) => issue.severity !== "blocker",
+      ).length;
+      if (advice)
+        a.toast?.(
+          `有 ${advice} 条建议，可在发布检查中查看；已继续同步。`,
+          false,
+        );
+      return { ...checked.value, acknowledged: [] };
     },
     destroy() {
       if (destroyed) return;
