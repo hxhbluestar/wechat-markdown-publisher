@@ -7,7 +7,12 @@ export function preparePublishingPresentation(html, {document = globalThis.docum
   addCodeLineNumbers(root,document,{wrap:codeWrap!=='scroll',color:lineNumberColor});
   const size=(typeof codeFontSize==='number'||typeof codeFontSize==='string')&&[12,14].includes(Number(codeFontSize))?Number(codeFontSize):12;
   for (const pre of root.querySelectorAll('pre')) {
-    for (const node of [pre,...pre.querySelectorAll('*')]) node.style.setProperty('font-size',size+'px','important');
+    for (const node of [pre,...pre.querySelectorAll('*')]) {
+      const gutter=node.hasAttribute('data-wx-code-line-number');
+      node.style.setProperty('font-size',(gutter?10:size)+'px','important');
+      // Keep the smaller digits aligned with the first visual source line.
+      if(gutter) node.style.setProperty('line-height',(size*1.8)+'px','important');
+    }
     pre.style.setProperty('display','block','important');
     const code=pre.querySelector('code');
     if(code) code.style.setProperty('display','block','important');

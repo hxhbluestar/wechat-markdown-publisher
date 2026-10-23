@@ -13,7 +13,7 @@ const render=(html,options={})=>{
 test('publishing code font honors 12 and 14, rejects other sizes and defaults to 12',()=>{
   for(const [input,expected] of [[undefined,12],[12,12],['14',14],[14,14],[18,12],[true,12],['12px',12]]) {
     const root=render('<pre><code><span style="font-size:28px!important">print(1)</span></code></pre>',{codeFontSize:input});
-    for(const element of root.querySelectorAll('pre,pre *')) assert.equal(element.style.getPropertyValue('font-size'),expected+'px');
+    for(const element of root.querySelectorAll('pre,pre *')) assert.equal(element.style.getPropertyValue('font-size'),(element.hasAttribute('data-wx-code-line-number')?10:expected)+'px');
   }
   assert.equal(normalizeTypography({}).code_font_size,12);
   assert.equal(normalizeTypography({code_font_size:'14'}).code_font_size,14);

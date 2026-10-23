@@ -14,7 +14,7 @@ function render(html,options={}) {
 }
 test('code sizes stay 14px in blocks and 12px inline even with authored or table styles',()=>{
   const root=render('<p style="font-size:18px">参数 <code style="font-size:24px!important"><b style="font-size:28px">batch_size</b></code></p><table><tr><td style="font-size:16px"><pre style="font-size:30px!important"><code><span style="font-size:22px">if True:\n\tprint("x")</span></code></pre></td></tr></table><div class="wx-code-caption" style="font-size:16px">Python</div>',{codeFontSize:14});
-  for(const node of root.querySelectorAll('pre,pre *')) assert.equal(node.style.getPropertyValue('font-size'),'14px');
+  for(const node of root.querySelectorAll('pre,pre *')) assert.equal(node.style.getPropertyValue('font-size'),node.hasAttribute('data-wx-code-line-number')?'10px':'14px');
   for(const node of root.querySelectorAll('p code,p code *,.wx-code-caption')) assert.equal(node.style.getPropertyValue('font-size'),'12px');
   assert.equal(publishedCodeText(root.querySelector('pre code')),'if True:\n\tprint("x")');
   assert.equal(root.querySelector('p').style.getPropertyValue('font-size'),'18px');

@@ -30,6 +30,9 @@ export function addCodeLineNumbers(root, document, {wrap=true,color='#657082'}={
     code.replaceChildren();
     code.setAttribute('data-wx-code-numbered','true');
     const digits=Math.max(2,String(lines.length).length);
+    // A pixel gutter includes its padding and rule. A ch-sized table cell can
+    // become too narrow when a rich editor normalizes its box sizing.
+    const gutterWidth=digits*7+10;
     for(const [index,fragment] of lines.entries()) {
       const row=document.createElement('span');
       row.setAttribute('data-wx-code-line','true');
@@ -39,9 +42,10 @@ export function addCodeLineNumbers(root, document, {wrap=true,color='#657082'}={
       number.setAttribute('data-wx-code-line-number','true');
       number.setAttribute('aria-hidden','true');
       number.textContent=String(index+1);
-      number.style.cssText=`display:table-cell!important;width:${digits}ch;box-sizing:content-box;padding:0 7px 0 0;border-right:1px solid rgba(128,144,160,.3);color:${color}!important;text-align:right;vertical-align:top;white-space:pre!important;user-select:none!important;-webkit-user-select:none!important;font-weight:400;line-height:inherit`;
+      number.style.cssText=`display:table-cell!important;width:${gutterWidth}px;min-width:${gutterWidth}px;max-width:${gutterWidth}px;box-sizing:border-box;padding:0 8px 0 0;border-right:1px solid rgba(128,144,160,.3);color:${color}!important;text-align:right;vertical-align:top;white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;user-select:none!important;-webkit-user-select:none!important;font-size:10px!important;font-weight:400;letter-spacing:0;line-height:inherit`;
       number.style.setProperty('user-select','none','important');
       number.style.setProperty('-webkit-user-select','none','important');
+      for(const [property,value] of Object.entries({'white-space':'nowrap','overflow-wrap':'normal','word-break':'keep-all'})) number.style.setProperty(property,value,'important');
       const text=document.createElement('span');
       text.setAttribute('data-wx-code-line-text','true');
       text.style.cssText=`display:table-cell!important;min-width:0;padding:0 0 0 8px;border:0;vertical-align:top;white-space:${wrap?'pre-wrap':'pre'}!important;overflow-wrap:${wrap?'anywhere':'normal'}!important;word-break:normal`;

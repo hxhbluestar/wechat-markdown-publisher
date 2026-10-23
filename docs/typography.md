@@ -155,7 +155,7 @@ Apple 尺寸参考 [Apple 布局规范](https://developer.apple.com/cn/design/hu
 
 普通 `python` 代码块也会突出常见 PyTorch/NumPy/JAX/TensorFlow 命名空间、Tensor/constexpr 等注解。TileLang 的 `T.Kernel`、`T.copy`、`T.alloc_shared`，Triton 的 `tl.load`、`tl.store`、`tl.arange`，以及 HIP/CUDA 的内核限定符、线程索引和运行时 API 有专门识别。采用词法高亮，不进行类型推断；自定义命名空间别名可能按普通标识符显示。JavaScript/TypeScript、JSON/JSONC、YAML、TOML、Rust、SQL 等已有语言继续可用。
 
-代码横滑保留长行，换行模式只改变显示；缩进、空行、制表符及尖括号等原文保留。公众号导出将颜色转成行内样式，不依赖网页脚本或高亮类名。未填写或不支持的语言安全显示为纯文本，不自动猜测。十二套文章版式共用新代码框、独立代码主题及 12/14px 字号设置；CSV/TSV/TXT 等数据块始终不显示行号。
+代码横滑保留长行，换行模式只改变显示；缩进、空行、制表符及尖括号等原文保留。公众号导出将颜色转成行内样式，不依赖网页脚本或高亮类名。未填写或不支持的语言安全显示为纯文本，不自动猜测。十二套文章版式共用新代码框、独立代码主题及 12/14px 字号设置；行号独立使用 10px 字体，按最大位数预留像素宽度，禁止数字断行，并与代码第一行对齐。CSV/TSV/TXT 等数据块始终不显示行号。
 
 ## ROCm 博客转载
 

@@ -7,6 +7,27 @@ const read=node=>node.nodeType===3?node.nodeValue:node.hasAttribute?.('data-wx-c
 function render(html,options={}) {
   const root=document.createElement('div');root.innerHTML=preparePublishingPresentation(html,{document,...options});return root;
 }
+
+test('multi-digit gutters use a smaller font and cannot inherit code wrapping',()=>{
+  for(const count of [10,100,1000]) for(const size of [12,14]) {
+    const source=Array.from({length:count},(_,i)=>`echo ${i+1}`).join('\n');
+    const root=render(`<pre><code class="language-bash">${source}</code></pre>`,{codeFontSize:size});
+    const numbers=[...root.querySelectorAll('[data-wx-code-line-number]')];
+    assert.equal(numbers.at(-1).textContent,String(count));
+    assert.equal(read(root.querySelector('code')),source);
+    for(const number of numbers) {
+      assert.equal(number.style.getPropertyValue('font-size'),'10px');
+      assert.equal(number.style.getPropertyValue('white-space'),'nowrap');
+      assert.equal(number.style.getPropertyValue('overflow-wrap'),'normal');
+      assert.equal(number.style.getPropertyValue('word-break'),'keep-all');
+      assert.match(number.style.width,/^\d+px$/);
+    }
+    assert.equal(render(root.innerHTML,{codeFontSize:size}).innerHTML,root.innerHTML);
+    root.innerHTML=preserveWechatCodeLayout(root.innerHTML,document);
+    assert.equal(read(root.querySelector('code')),source);
+    assert.equal(preserveWechatCodeLayout(root.innerHTML,document),root.innerHTML);
+  }
+});
 test('every logical code line gets one number including empty lines, preserving source and highlighting',()=>{
   const source='def run():\n\tprint("x")\n\n    return 2\n';
   const root=render('<pre><code><span class="hljs-keyword" style="color:#7441a8">def</span> run():\n\tprint("x")\n\n    return 2\n</code></pre>');

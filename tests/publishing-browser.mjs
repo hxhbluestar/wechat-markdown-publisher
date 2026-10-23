@@ -60,6 +60,36 @@ const showCodeTheme=codeTheme=>{
 try {
  const entry=new DOMParser().parseFromString(await fetch('/editor/').then(r=>r.text()),'text/html');
  const renderer=await import(entry.querySelector('script[type="module"][crossorigin]').getAttribute('src'));
+ result.gutterMeasurements=[];
+ for(const theme of ['technical','journal','dracula']) for(const size of [12,14]) for(const mode of ['wrap','scroll']) for(const count of [10,100]) {
+  const source=Array.from({length:count},(_,i)=>i===1?'echo "'+('ROCm '.repeat(25))+'"':`echo "GPU ${i+1}"`).join('\n');
+  const html=renderer.exportWechatArticle('```bash\n'+source+'\n```',theme,'blue',{code_font_size:size,code_wrap:mode});
+  for(const fallback of [false,true]) {
+   samples.innerHTML=html;
+   const numbers=[...samples.querySelectorAll('[data-wx-code-line-number]')];
+   if(fallback) {
+    // Conservative rich-editor fallback: lose pre semantics/white-space while
+    // the host applies border-box sizing. This is not a WeChat emulator.
+    for(const pre of samples.querySelectorAll('pre')) {const section=document.createElement('section');for(const a of pre.attributes)section.setAttribute(a.name,a.value);while(pre.firstChild)section.append(pre.firstChild);pre.replaceWith(section);}
+    for(const n of samples.querySelectorAll('*')) {n.removeAttribute('class');n.removeAttribute('data-wx-code-line-number');n.style.removeProperty('white-space');}
+    for(const n of numbers)n.style.setProperty('box-sizing','border-box');
+   }
+   for(const width of [278,393,820]) {
+    samples.style.width=width+'px';
+    for(const index of [8,9,count-1]) {
+     const number=numbers[index],range=document.createRange();range.selectNodeContents(number);
+     const rects=[...range.getClientRects()];
+     const rows=new Set(rects.map(r=>Math.round(r.top*10)/10));
+     const s=getComputedStyle(number),label=`gutter/${theme}/${size}/${mode}/${count}/${width}/${fallback}/${index+1}`;
+     check(rows.size===1,label+' number stays on one visual line');
+     check(s.fontSize==='10px',label+' gutter is smaller than code');
+     check(rects.every(r=>r.left>=number.getBoundingClientRect().left-1&&r.right<=number.getBoundingClientRect().right+1),label+' every digit fits its cell');
+     if(theme==='technical'&&size===12&&mode==='wrap'&&width===393&&index===count-1)result.gutterMeasurements.push({count,fallback,rows:rows.size,width:number.getBoundingClientRect().width,font:s.fontSize,whiteSpace:s.whiteSpace,overflowWrap:s.overflowWrap,wordBreak:s.wordBreak,style:number.getAttribute('style')});
+    }
+   }
+   if(!fallback)check(read(samples.querySelector('pre code'))===source,theme+'/'+size+'/'+count+' source stays exact');
+  }
+ }
  const markdown=['# 技术文章','参数 `batch_size`，参考 [官方文档](https://example.com/docs?q=a&b=2)。','导入资料：[项目说明]https://github.com/ROCm/aiter/blob/main/README.md。',...Object.entries(snippets).map(([lang,source])=>'```'+lang+'\n'+source+'\n```'),'| 配置 | 示例 |\n| --- | --- |\n| 参数 | `dtype` 和 [源码](https://github.com/AMD-AIG/Hyperloom) |'].join('\n\n');
  for(const theme of articleThemes) for(const mode of ['scroll','wrap']) for(const codeSize of [12,14]) {
   const label=theme+'/'+mode+'/'+codeSize, options={font_size:18,table_font_size:16,code_wrap:mode,code_font_size:codeSize};
@@ -75,7 +105,7 @@ try {
   check([...samples.querySelectorAll('span')].some(e=>e.textContent==='项目说明[2]'),label+' imported plain label-URL is compact too');
   for(const code of samples.querySelectorAll('code')) {
    const block=code.closest('pre'), size=block?codeSize:12;
-   check([code,...code.querySelectorAll('*')].every(e=>parseFloat(getComputedStyle(e).fontSize)===size),label+' code computes to '+size+'px including colored tokens and table content');
+   check([code,...code.querySelectorAll('*')].every(e=>parseFloat(getComputedStyle(e).fontSize)===(e.hasAttribute('data-wx-code-line-number')?10:size)),label+' code computes to '+size+'px with a smaller 10px gutter');
   }
   for(const pre of samples.querySelectorAll('pre')) {
    const title=pre.previousElementSibling;
@@ -122,7 +152,7 @@ try {
    const code=codes[index],pre=code.closest('pre'),header=pre.previousElementSibling;
    check(read(code)===source,label+'/'+language+' exported source remains exact');
    check(code.querySelectorAll('[data-wx-code-line-number]').length===source.split('\n').length,label+'/'+language+' has one number for each logical source line');
-   check([code,...code.querySelectorAll('*')].every(node=>parseFloat(getComputedStyle(node).fontSize)===codeSize),label+'/'+language+' all source, token and number text respects selected font size');
+   check([code,...code.querySelectorAll('*')].every(node=>parseFloat(getComputedStyle(node).fontSize)===(node.hasAttribute('data-wx-code-line-number')?10:codeSize)),label+'/'+language+' source and tokens use selected size with a smaller gutter');
    check(getComputedStyle(pre).backgroundColor===codePalette[codeTheme].body,label+'/'+language+' code body uses requested independent theme');
    check(getComputedStyle(header).backgroundColor===codePalette[codeTheme].header,label+'/'+language+' header is visually distinct from body');
    check(getComputedStyle(pre).borderTopStyle==='solid'&&parseFloat(getComputedStyle(pre).borderTopWidth)>0,label+'/'+language+' real header divider survives CSS inlining');
@@ -147,7 +177,7 @@ try {
   check(!samples.querySelector('[class],[data-wx-code-line],[data-wx-code-line-number]'),label+' cleaning removes every class and code marker');
   for(const [index,code] of [...samples.querySelectorAll('pre code')].entries()) {
    check(readCleanedCode(code)===expected[index],label+' sanitizer preserves code source '+index+' without leaking line numbers');
-   check([code,...code.querySelectorAll('*')].every(node=>parseFloat(getComputedStyle(node).fontSize)===codeSize),label+' sanitizer retains '+codeSize+'px for block '+index);
+   check([code,...code.querySelectorAll('*')].every(node=>parseFloat(getComputedStyle(node).fontSize)===(getComputedStyle(node).userSelect==='none'?10:codeSize)),label+' cleaning retains '+codeSize+'px code and 10px gutter for block '+index);
   }
  }
  // Changing article colors/layout must not recolor an explicitly chosen code
