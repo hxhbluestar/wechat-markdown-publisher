@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='publisher-layout-qa-') as data:
                 return self.send_json(state)
             if self.path.startswith('/tests/'):
                 name=self.path.split('?',1)[0].rsplit('/',1)[-1]
-                if name in {'table-mobile-browser.html','table-mobile-browser.mjs','editor-layout-browser.html','editor-layout-browser.mjs','table-layout-browser.html','table-layout-browser.mjs','typography-browser.html','typography-browser.mjs','publishing-browser.html','publishing-browser.mjs','code-highlighting-browser.html','code-highlighting-browser.mjs','code-samples.mjs','published-code-text.mjs','workflow-simple-browser.html','workflow-simple-browser.mjs'}:
+                if name in {'preview-paper-browser.html','preview-paper-browser.mjs','table-mobile-browser.html','table-mobile-browser.mjs','editor-layout-browser.html','editor-layout-browser.mjs','table-layout-browser.html','table-layout-browser.mjs','typography-browser.html','typography-browser.mjs','publishing-browser.html','publishing-browser.mjs','code-highlighting-browser.html','code-highlighting-browser.mjs','code-samples.mjs','published-code-text.mjs','workflow-simple-browser.html','workflow-simple-browser.mjs'}:
                     payload=(ROOT/'tests'/name).read_bytes()
                     if name.endswith('.html'):
                         payload=payload.replace(b'/editor/typography-browser.mjs',b'/tests/typography-browser.mjs').replace(b'/editor/code-highlighting-browser.mjs',b'/tests/code-highlighting-browser.mjs')

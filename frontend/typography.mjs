@@ -62,6 +62,11 @@ function articlePalettes(theme) {
   return THEMES[theme].dark?DARK_PALETTES:['nord','latte'].includes(theme)?SOFT_PAPER_PALETTES:PALETTES;
 }
 
+// Preview padding belongs to the same sheet as the rendered article.
+export function typographyPaper(theme) {
+  return Object.hasOwn(THEMES, theme) ? THEMES[theme].paper : null;
+}
+
 export function typographyAccent(theme, palette) {
   if (!NEW_THEMES.has(theme)) return null;
   const colors = articlePalettes(theme);

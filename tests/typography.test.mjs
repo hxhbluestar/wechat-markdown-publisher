@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
-import { normalizeTypography, prepareTypography } from '../frontend/typography.mjs';
+import { normalizeTypography, prepareTypography, typographyPaper } from '../frontend/typography.mjs';
 import {codeTheme} from '../frontend/code-themes.mjs';
 
 const context = vm.createContext({});
@@ -28,6 +28,19 @@ function computedRule(css, selector, property) {
   }
   return value;
 }
+
+test('preview paper matches each article theme without applying a text highlight', () => {
+  for (const theme of ['technical','journal','minimal','obsidian','deepsea','teal','nord','dracula','latte']) {
+    for (const palette of ['warm','blue','ink']) {
+      const {css,holder} = render('<h1>AMD ROCm Lab</h1><p>正文没有单独的底色色块。</p>', {theme,palette});
+      assert.match(typographyPaper(theme), /^#[\da-f]{6}$/i);
+      assert.equal(typographyPaper(theme), computedRule(css, '#output .wx-typography', 'background'), `${theme}/${palette}: preview and export share a paper color`);
+      if (theme === 'technical') assert.equal(resolvedRule(css, holder.querySelector('h1'), 'background'), 'transparent');
+      assert.equal(resolvedRule(css, holder.querySelector('p'), 'background'), undefined);
+    }
+  }
+  for (const theme of ['default','grace','simple','unknown','__proto__',null]) assert.equal(typographyPaper(theme), null, `${theme}: leave the existing preview surface alone`);
+});
 
 test('saved legacy layouts wrap long headings and use readable opaque table headers', () => {
   const html = '<h2>ROCmGraphCompilerKernelConfigurationCrossPlatform</h2><table><tr><th><strong>参数</strong></th></tr><tr><td>保留值</td></tr></table>';

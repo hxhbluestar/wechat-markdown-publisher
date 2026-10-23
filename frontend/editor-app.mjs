@@ -30,6 +30,7 @@ import { assetToolsMarkup, connectAssetTools } from "./asset-tools.mjs";
 import {
   prepareTypography,
   typographyAccent,
+  typographyPaper,
   escapeHtmlAttribute,
 } from "./typography.mjs";
 import {
@@ -1015,6 +1016,8 @@ async function renderPreview() {
         state.previewMode === "wechat"
           ? "wechat-preview"
           : "reader-preview md-content"),
+      (ui.preview.style.background =
+        state.previewMode === "wechat" ? typographyPaper(state.theme) || "" : ""),
       (ui.preview.innerHTML =
         state.previewMode === "wechat" ? `<div id="output">${n}</div>` : n));
     const s = t.replace(/\s/g, "").length;
