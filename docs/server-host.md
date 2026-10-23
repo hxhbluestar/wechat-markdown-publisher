@@ -26,6 +26,8 @@
 
 检查未登录访问返回 401，正确登录可以打开编辑器及素材；错误密码不能访问；外站 Origin/跨站 POST 返回 403，缺失编辑器 Token 的写请求被后端拒绝。用可恢复的合成稿件检查创建、保存、恢复和删除，再确认原有稿件及素材哈希没有变化。微信接口出口及白名单必须从服务器实测。
 
+整页验收必须包含并发资源加载：HTTPS/HTTP2 会同时向后端建立多个连接，Python 旧版本默认的 5 个待接入连接会在 Windows 上导致部分 CSS/JS 返回 502。后端使用 128 个待接入连接的队列；回归测试以 32 个独立连接分三轮检查资源状态和完整字节。服务器上线后，还应在 Chrome 中检查所有样式表都已解析、桌面版视图切换已隐藏、排版设置和同步弹窗显示正常，不能只逐个访问静态文件。
+
 更新前备份代码、版本和私有数据，停止两个任务，核对所属进程后停止相关 Python/Caddy 进程，更新经过测试的代码，再启动任务并重新验收。保留服务器 `data/`、运行时、TLS 私钥和网关配置；本机版 `deploy-typography.ps1` 的 8899 进程识别规则不适用于服务器网关，不应直接用于该目录。
 
 参考：[Caddy Basic Authentication](https://caddyserver.com/docs/caddyfile/directives/basic_auth)、[反向代理](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)。

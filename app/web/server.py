@@ -1731,6 +1731,13 @@ class Handler(SimpleHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
+class PublisherHTTPServer(ThreadingHTTPServer):
+    # A single HTTP/2 page load at the gateway opens many backend connections.
+    # Python <=3.14 defaults to only five pending connections; Windows rejects
+    # overflow before a request reaches Handler, producing partial-page 502s.
+    request_queue_size = 128
+
+
 def main() -> None:
     port = int(os.environ.get("ARCHIVE_PORT", "8899"))
     url = f"http://127.0.0.1:{port}"
@@ -1748,7 +1755,7 @@ def main() -> None:
             webbrowser.open(url)
         except Exception:
             pass
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = PublisherHTTPServer(("127.0.0.1", port), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

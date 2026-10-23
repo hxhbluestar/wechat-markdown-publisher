@@ -1,5 +1,6 @@
 """HTTP workflow tests run an isolated loopback server with synthetic drafts."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import os
@@ -8,6 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
@@ -83,6 +85,31 @@ class WorkflowAPI(unittest.TestCase):
                                 self.assertEqual(bool(body),method=='GET')
                         except urllib.error.HTTPError as error:
                             self.fail('Mutable frontend returned a cached response: '+str(error.code))
+
+    def test_frontend_resources_survive_browser_connection_bursts(self):
+        # HTTPS/HTTP2 gateways fan a page's stylesheet/module requests into
+        # simultaneous HTTP1 connections. Use fresh sockets just like Caddy.
+        paths = [
+            '/editor/assets/editor-layout-20261018.css',
+            '/editor/assets/typography-controls-20261017-scroll.css',
+            '/editor/assets/workflow-ui-20261018.css',
+            '/editor/assets/company-network-20261016.mjs',
+        ]
+        def burst():
+            gate = threading.Barrier(32)
+            def get(index):
+                path = paths[index % len(paths)]
+                gate.wait(timeout=10)
+                try:
+                    with urllib.request.urlopen(self.url + path, timeout=1) as response:
+                        return response.status == 200 and response.read() == (ROOT/'app/web'/path.lstrip('/')).read_bytes()
+                except OSError:
+                    return False
+            with ThreadPoolExecutor(max_workers=32) as pool:
+                return list(pool.map(get, range(32)))
+        for round_index in range(3):
+            results = burst()
+            self.assertTrue(all(results), f'Burst {round_index}: {results.count(False)} frontend resources failed')
 
     def test_soft_delete_and_restore_trash(self):
         _,d=self.request('/api/editor/drafts',{'content':'# Recycle'})
