@@ -471,6 +471,55 @@ test('highlighter absence or thrown errors falls back to escaped plain code', ()
   }
 });
 
+test('auto turns multi-column prose into readable records without changing any cell contents', () => {
+  const html = '<table><thead><tr><th>入口</th><th>适合什么情况</th><th>怎么用</th></tr></thead><tbody><tr><td>官方汇总脚本 <code>op_tune.sh</code></td><td>使用 AITER 源码仓库自带的输入 CSV，快速运行某类算子的测试或调优</td><td>选 <code>test</code> 或 <code>tune</code>，可指定算子类别</td></tr><tr><td>按算子的 tuner</td><td>要调自己模型的一批输入，或希望控制输出 CSV、比较方式和阈值</td><td>用 <code>-i</code> 给输入 CSV，用 <code>-o</code> 保存配置；Fused MoE 使用 <code>gemm_moe_tune.py</code></td></tr></tbody></table>';
+  const result = render(html, { table_mode:'auto', table_font_size:12 });
+  assert.equal(result.holder.querySelectorAll('table,.wx-table-scroll').length,0);
+  const cards=[...result.holder.querySelectorAll('.wx-table-card')];
+  assert.equal(cards.length,2);
+  assert.deepEqual([...cards[0].querySelectorAll('.wx-table-key')].map(x=>x.textContent),['入口','适合什么情况','怎么用']);
+  const original=document.createElement('div');original.innerHTML=html;
+  assert.deepEqual([...result.holder.querySelectorAll('.wx-table-value')].map(x=>x.innerHTML),[...original.querySelectorAll('tbody td')].map(x=>x.innerHTML));
+  assert.equal(result.holder.querySelector('code').textContent,'op_tune.sh');
+  assert.equal(computedRule(result.css, '#output .wx-typography .wx-table-value', 'font-size'), '12px');
+  const explicit=render(html,{table_mode:'scroll'});
+  assert.equal(explicit.holder.querySelectorAll('table').length,1);
+  assert.equal(explicit.holder.querySelectorAll('.wx-table-card').length,0);
+});
+
+test('auto keeps comparison data and two-column specs as balanced tables', () => {
+  for (const html of [
+    '<table><tr><th>型号</th><th>精度</th><th>吞吐</th></tr><tr><td>AMD Instinct</td><td>BF16</td><td>256</td></tr></table>',
+    '<table><tr><th>项目</th><th>说明</th></tr><tr><td>处理器</td><td>AMD 锐龙 AI Max+ PRO 495，16 核 32 线程，最高加速频率 5.2GHz</td></tr></table>',
+  ]) {
+    const result=render(html);
+    assert.equal(result.holder.querySelectorAll('table').length,1);
+    assert.equal(result.holder.querySelectorAll('.wx-table-card').length,0);
+    const cells=[...result.holder.querySelectorAll('tr:first-child th')];
+    for(const cell of cells) assert.ok(parseFloat(cell.style.width)>=20,'No column can be squeezed into a strip');
+  }
+});
+
+test('preparing automatic column widths twice cannot turn them into authored scroll geometry', () => {
+  const html='<table><tr><th>项目</th><th>配置</th></tr><tr><td>内存</td><td>192GB</td></tr></table>';
+  const first=render(html),second=render(first.html);
+  assert.equal(second.holder.querySelectorAll('.wx-table-scroll').length,0);
+  assert.ok(second.holder.querySelector('table.wx-table-fit'));
+  assert.equal(first.holder.textContent,second.holder.textContent);
+  assert.deepEqual([...first.holder.querySelectorAll('th,td')].map(x=>x.style.width),[...second.holder.querySelectorAll('th,td')].map(x=>x.style.width));
+});
+
+test('automatic legacy record cards retain their styles through the editor fallback pass', () => {
+  const html='<table><tr><th>入口</th><th>说明</th><th>操作</th></tr><tr><td>脚本</td><td>使用源码仓库自带的输入数据，快速运行某类算子的测试或调优</td><td>运行命令</td></tr></table>';
+  for(const theme of ['grace','default','simple']) {
+    const first=render(html,{theme}),second=render(first.html,{theme});
+    assert.ok(second.holder.querySelector('.wx-table-card'));
+    assert.equal(second.holder.textContent,first.holder.textContent);
+    assert.equal(computedRule(second.css,'#output .wx-typography .wx-table-key','display'),'block');
+    assert.equal(computedRule(second.css,'#output .wx-typography .wx-table-value','font-size'),'16px');
+  }
+});
+
 test('small tables fit naturally while wide auto tables get one responsive scroll area', () => {
   const small = '<table><thead><tr><th>项目</th><th>值</th></tr></thead><tbody><tr><td>批量</td><td>4</td></tr></tbody></table>';
   const compact = render(small);
@@ -493,7 +542,7 @@ test('auto fit tables wrap wide Latin runs while explicit scroll preserves natur
   const table = compact.holder.querySelector('table');
   assert.ok(table.matches('.wx-table-fit'));
   assert.equal(compact.holder.querySelectorAll('.wx-table-scroll').length, 0);
-  assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'table-layout'), 'auto');
+  assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'table-layout'), 'fixed');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit', 'width'), '100%');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit th', 'overflow-wrap'), 'anywhere');
   assert.equal(computedRule(compact.css, '#output .wx-typography .wx-table-fit td', 'overflow-wrap'), 'anywhere');

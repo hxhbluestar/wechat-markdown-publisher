@@ -365,11 +365,12 @@ export function normalizeBlockOverrides(value) {
 function matchElements(root, blocks) {
   const candidates = [
     ...root.querySelectorAll(
-      "h1,h2,h3,h4,h5,h6,p,figcaption,.md-figcaption,table",
+      "h1,h2,h3,h4,h5,h6,p,figcaption,.md-figcaption,table,.wx-table-cards",
     ),
   ].filter((element) => {
     if (element.closest("pre,code,script,style,svg,math,template"))
       return false;
+    if (!element.matches('.wx-table-cards') && element.closest('.wx-table-cards')) return false;
     if (
       element.tagName === "P" &&
       (element.closest("figcaption,.md-figcaption,table,li,blockquote") ||
@@ -384,7 +385,7 @@ function matchElements(root, blocks) {
     return true;
   });
   const elementKind = (element) =>
-    element.matches("figcaption,.md-figcaption")
+    element.matches('.wx-table-cards') ? 'table' : element.matches("figcaption,.md-figcaption")
       ? "figcaption"
       : element.tagName.toLowerCase();
   const matches = new Map(),
@@ -397,7 +398,11 @@ function matchElements(root, blocks) {
     sourceCounts.set(value, (sourceCounts.get(value) || 0) + 1);
   }
   for (const element of candidates) {
-    const value = key(elementKind(element), element.textContent);
+    const firstRecord = element.matches('.wx-table-cards') ? element.querySelector('.wx-table-card') : null;
+    const recordText = element.matches('.wx-table-cards')
+      ? [...(firstRecord?.querySelectorAll('.wx-table-key') || []), ...element.querySelectorAll('.wx-table-value')].map(node => node.textContent).join(' ')
+      : element.textContent;
+    const value = key(elementKind(element), recordText);
     if (!rendered.has(value)) rendered.set(value, []);
     rendered.get(value).push(element);
   }
@@ -464,13 +469,13 @@ export function applyBlockOverrides(html, content, value, options = {}) {
       node.style.setProperty(key, String(value), "important");
     if (override.font_size !== undefined) {
       set(element, "font-size", override.font_size + "px");
-      for (const child of element.querySelectorAll("span,strong,em,a,p,th,td"))
+      for (const child of element.querySelectorAll("span,strong,em,a,p,th,td,div"))
         if (!child.closest("pre,code,svg,math"))
           set(child, "font-size", "inherit");
     }
     if (override.line_height !== undefined) {
       set(element, "line-height", override.line_height);
-      for (const child of element.querySelectorAll("span,strong,em,a,p,th,td"))
+      for (const child of element.querySelectorAll("span,strong,em,a,p,th,td,div"))
         if (!child.closest("pre,code,svg,math"))
           set(child, "line-height", "inherit");
     }

@@ -82,7 +82,7 @@ export function exportWechatArticle(
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/\sid="output"/g, "")
     .replace(
-      /\sdata-(?:source-code|raw-code|language-pending|show-line-number|article-block|rich-source-from|rich-source-to)="[^"]*"/g,
+      /\sdata-(?:source-code|raw-code|language-pending|show-line-number|article-block|rich-source-from|rich-source-to|wx-auto-column-width)="[^"]*"/g,
       "",
     )
     .replace(/\sclass="[^"]*"/g, "")

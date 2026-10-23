@@ -52,7 +52,7 @@ export function typographyControlsMarkup() {
     <label>代码字号<select id="codeFontSizeSelect"><option value="12" selected>12 px</option><option value="14">14 px</option></select></label>
     <label>代码主题<select id="codeThemeSelect"><option value="auto" selected>随版式</option><option value="vscode">VS Code 深色</option><option value="github">GitHub 浅色</option><option value="catppuccin">Catppuccin 摩卡</option></select></label>
     <label>代码长行<select id="codeWrapSelect"><option value="wrap" selected>阅读换行</option><option value="scroll">横向滚动</option></select></label>
-    <label>表格呈现<select id="tableModeSelect"><option value="auto">自动适配</option><option value="scroll">保留横滑</option><option value="cards">分行卡片</option></select></label>
+    <label>表格呈现<select id="tableModeSelect"><option value="auto">智能适配（长说明转卡片）</option><option value="scroll">保留横滑</option><option value="cards">分行卡片</option></select></label>
     <div class="device-preview-controls" aria-label="设备排版预览">
       <label>设备预览<select id="previewWidthSelect">${deviceOptionsMarkup()}</select></label>
       <label>方向<select id="previewOrientationSelect"><option value="portrait" selected>竖屏</option><option value="landscape">横屏</option></select></label>

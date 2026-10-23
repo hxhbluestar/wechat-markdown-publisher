@@ -105,7 +105,7 @@ function typographyCSS(settings, theme, fresh, palette) {
       // also keeps the old code padding inside the available phone width.
       css += rule('.wx-code-pre,.wx-code-text', { display: 'block', 'box-sizing': 'border-box', width: 'auto', 'min-width': '0', 'max-width': '100%', 'overflow-x': 'hidden' });
     }
-    css += settings.table_mode === 'auto' ? tableLayoutCSS() : tableCSS(THEMES.minimal);
+    css += settings.table_mode === 'auto' ? tableLayoutCSS() + tableCardsCSS(THEMES.minimal) : tableCSS(THEMES.minimal);
     const headerColor = Object.hasOwn(PALETTES,palette) ? PALETTES[palette].accent : '#9f5538';
     css += rule('thead,th', { color:'#ffffff', background:headerColor });
     css += rule('th *', { color:'inherit', background:'transparent' });
@@ -247,6 +247,8 @@ function smallTextCSS(settings, fresh) {
     css += rule('table,th,td,th *,td *,.wx-table-field,.wx-table-key,.wx-table-key *,.wx-table-value,.wx-table-value *,.wx-table-hint,.wx-table-caption,caption,caption *', { 'font-size': `${settings.table_font_size}px`, 'line-height': '1.75' });
     css += rule('th code,td code,th .wx-code-pre,td .wx-code-pre,th .wx-code-caption,td .wx-code-caption,th .wx-code-text,td .wx-code-text,.wx-table-key code,.wx-table-value code,.wx-table-value .wx-code-text,.wx-table-value .wx-code-text *', { 'font-size': `${settings.table_font_size}px` });
   }
+  // Auto may now choose records even for a saved legacy theme at 16px.
+  css += rule('.wx-table-key,.wx-table-key *,.wx-table-value,.wx-table-value *', { 'font-size': `${settings.table_font_size}px`, 'line-height': '1.75' });
   return css;
 }
 
@@ -256,10 +258,14 @@ function tableCSS(c) {
     rule('th,td', { padding: '10px 11px', border: '0', 'border-bottom': `1px solid ${c.rule}`, 'vertical-align': 'top', 'font-size': '13px', 'line-height': '1.75', color: c.ink, 'white-space': 'normal', 'overflow-wrap': 'break-word' }) +
     rule('th', { 'font-weight': '700', background: c.tint }) +
     rule('td', { background: c.paper }) +
-    tableLayoutCSS() +
-    rule('.wx-table-hint,.wx-table-caption', { 'font-family': SANS, 'font-size': '11px', 'line-height': '1.75', color: c.secondary, margin: '0 0 9px', padding: '0' }) +
+    tableLayoutCSS() + tableCardsCSS(c);
+}
+
+function tableCardsCSS(c) {
+  return rule('.wx-table-hint,.wx-table-caption', { 'font-family': SANS, 'font-size': '11px', 'line-height': '1.75', color: c.secondary, margin: '0 0 9px', padding: '0' }) +
     rule('.wx-table-cards', { margin: '20px 0 24px', padding: '0', 'max-width': '100%' }) +
-    rule('.wx-table-card', { margin: '0 0 13px', padding: '13px 14px', border: `1px solid ${c.rule}`, 'border-radius': '4px', background: c.paper }) +
+    rule('.wx-table-card', { margin: '0 0 14px', padding: '13px 14px', border: `1px solid ${c.rule}`, 'border-top': `2px solid ${c.accent}`, 'border-radius': '4px', background: c.paper, 'box-sizing': 'border-box' }) +
+    rule('.wx-table-record-title', { 'font-weight': '700' }) +
     rule('.wx-table-field', { display: 'block', margin: '0 0 9px', padding: '0', 'font-size': '14px', 'line-height': '1.8' }) +
     rule('.wx-table-key', { display: 'block', color: c.secondary, 'font-family': SANS, 'font-size': '12px', 'line-height': '1.65', 'font-weight': '600', margin: '0 0 2px' }) +
     rule('.wx-table-value', { display: 'block', color: c.ink, 'font-family': SANS, 'font-size': '14px', 'line-height': '1.8', margin: '0', 'overflow-wrap': 'anywhere' }) +
@@ -275,14 +281,14 @@ function tableCSS(c) {
 // or typography. A full-width table cannot also have horizontal outer margins.
 function tableLayoutCSS() {
   return rule('table', { display: 'table', margin: '0', 'box-sizing': 'border-box', overflow: 'visible' }) +
-    rule('.wx-table-fit', { width: '100%', 'min-width': '0', 'max-width': '100%', 'table-layout': 'auto' }) +
+    rule('.wx-table-fit', { width: '100%', 'min-width': '0', 'max-width': '100%', 'table-layout': 'fixed' }) +
     rule('.wx-table-fit th,.wx-table-fit td', { 'overflow-wrap': 'anywhere', 'word-break': 'normal', 'min-width': '0' }) +
     rule('.wx-table-block', { margin: '20px 0 24px', padding: '0', 'max-width': '100%', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
     rule('.wx-table-scroll', { display: 'block', 'max-width': '100%', 'overflow-x': 'auto', 'overflow-y': 'auto', 'max-height': 'none', height: 'auto', '-webkit-overflow-scrolling': 'touch', padding: '0 0 8px', margin: '0' }) +
     rule('.wx-table-scroll table', { display: 'table', width: 'max-content', 'min-width': '100%', 'table-layout': 'auto', overflow: 'visible', 'max-height': 'none', height: 'auto' }) +
     rule('.wx-table-scroll th,.wx-table-scroll td', { 'white-space': 'nowrap', 'overflow-wrap': 'normal', overflow: 'visible', 'max-height': 'none', height: 'auto', 'text-overflow': 'clip' }) +
     rule('.wx-table-scroll th code,.wx-table-scroll td code', { 'white-space': 'inherit', 'overflow-wrap': 'normal' }) +
-    rule('.wx-table-auto table', { width: '100%', 'table-layout': 'auto' }) +
+    rule('.wx-table-auto table', { width: '100%', 'table-layout': 'fixed' }) +
     rule('.wx-table-auto th,.wx-table-auto td,.wx-table-auto th code,.wx-table-auto td code', { 'white-space': 'normal', 'overflow-wrap': 'anywhere', 'word-break': 'normal' });
 }
 
@@ -387,6 +393,8 @@ function ownCells(row) {
 }
 function authoredDimension(element, property) {
   const style = (element.style.getPropertyValue(property) || '').replace(/\s*!important\s*$/, '').trim();
+  const generated = element.getAttribute('data-wx-auto-column-width');
+  if (property === 'width' && /^(?:TH|TD)$/.test(element.tagName) && /^\d+(?:\.\d+)?%$/.test(generated || '') && generated === style) return '';
   if (style && !/^(?:auto|initial|inherit|unset)$/i.test(style)) return style;
   const attribute = property === 'width' ? (element.getAttribute('width') || '').trim() : '';
   return /^\d+(?:\.\d+)?$/.test(attribute) ? `${attribute}px` : attribute;
@@ -404,7 +412,14 @@ function tableModel(table) {
     const width = [...cell.textContent.trim()].reduce((sum, char) => sum + (/[^\u0000-\u00ff]/.test(char) ? 13 : 7), 0);
     widths[index] = Math.max(widths[index] || 0, width + 22);
   });
-  return { headers, body, count, complex, intrinsic: !!table.querySelector('pre,img'), width: widths.reduce((sum, width) => sum + width, 0) };
+  const narrative = count >= 3 && body.some(row => ownCells(row).some(cell => {
+    const text = cell.textContent.replace(/\s+/g, ' ').trim();
+    const cjk = (text.match(/[\u3400-\u9fff]/g) || []).length;
+    // Long identifiers are data, not prose. Look for sentences in either
+    // Chinese or spaced languages, independent of particular header words.
+    return (cjk >= 20 && text.length >= 28) || (text.length >= 75 && text.split(/\s+/).length >= 10);
+  }));
+  return { headers, body, count, complex, narrative, widths, intrinsic: !!table.querySelector('pre,img'), width: widths.reduce((sum, width) => sum + width, 0) };
 }
 
 function tableTarget(table, root) {
@@ -434,7 +449,8 @@ function prepareTables(root, settings, document) {
     }
     const model = tableModel(table);
     const target = tableTarget(table, root);
-    if (settings.table_mode === 'cards' && !model.complex && model.body.length && model.count) {
+    const autoCards = settings.table_mode === 'auto' && model.narrative && !model.intrinsic;
+    if ((settings.table_mode === 'cards' || autoCards) && !model.complex && model.body.length && model.count) {
       const cards = document.createElement('section');
       cards.className = 'wx-table-cards';
       const caption = table.querySelector('caption');
@@ -455,7 +471,7 @@ function prepareTables(root, settings, document) {
           if (model.headers[index]) copyContent(model.headers[index], key);
           else key.textContent = `列 ${index + 1}`;
           const value = document.createElement('div');
-          value.className = 'wx-table-value';
+          value.className = `wx-table-value${index === 0 ? ' wx-table-record-title' : ''}`;
           copyContent(cell, value);
           field.append(key, value);
           card.append(field);
@@ -464,6 +480,16 @@ function prepareTables(root, settings, document) {
       }
       target.replaceWith(cards);
       continue;
+    }
+    if (settings.table_mode === 'auto' && !model.complex && !model.intrinsic) {
+      // Export percentage widths on the actual cells: no colgroup, class,
+      // media query, JS measurement or browser auto-column heuristics needed.
+      const shares = model.count === 2 && model.widths[0] <= 200 ? [30,70] : Array(model.count).fill(100/model.count);
+      for (const row of ownRows(table)) ownCells(row).forEach((cell,index) => {
+        const width = `${shares[index]}%`;
+        cell.style.setProperty('width', width, 'important');
+        cell.setAttribute('data-wx-auto-column-width', width);
+      });
     }
     if (settings.table_mode === 'scroll' || settings.table_mode === 'cards' || model.complex || model.intrinsic || model.width > 310) {
       const block = document.createElement('section');
@@ -552,6 +578,7 @@ function prepareSmallText(root, settings, fresh) {
   if (fresh || settings.table_font_size !== 16 || settings.table_mode !== 'auto') {
     for (const element of root.querySelectorAll('table,th,td,th *,td *,.wx-table-key,.wx-table-key *,.wx-table-value,.wx-table-value *')) clearSize(element);
   }
+  for (const element of root.querySelectorAll('.wx-table-key,.wx-table-key *,.wx-table-value,.wx-table-value *')) clearSize(element);
 }
 
 function prepareAlerts(root, document) {
@@ -594,7 +621,7 @@ export function prepareTypography(html, options = {}, document = globalThis.docu
   const theme = typeof options?.theme === 'string' ? options.theme : 'technical';
   const settings = normalizeTypography(options, theme);
   const fresh = NEW_THEMES.has(theme);
-  if (!fresh && !/<(?:table|pre)\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
+  if (!fresh && !/<(?:table|pre)\b/i.test(html) && !/<[^>]+\bclass\s*=\s*["'][^"']*\bwx-table-cards\b/i.test(html) && settings.font_family === 'theme' && settings.font_size === 16 && settings.table_mode === 'auto' && settings.caption_font_size === 13 && settings.table_font_size === 16) return { html, css: '' };
   if (!document?.createElement) throw new Error('Typography rendering requires a DOM document');
   const holder = document.createElement('div');
   holder.innerHTML = html;

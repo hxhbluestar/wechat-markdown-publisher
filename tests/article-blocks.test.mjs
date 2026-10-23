@@ -8,6 +8,32 @@ const document=parseHTML('<html><body></body></html>').document;
 const ready=()=>assert.equal(typeof describeBlocks,'function','article block implementation is missing');
 const rootOf=html=>{const root=document.createElement('div');root.innerHTML=html;return root;};
 
+test('table block controls remain attached after automatic record conversion',async()=>{
+  const {prepareTypography}=await import('../frontend/typography.mjs');
+  const source='| 入口 | 适合什么情况 | 怎么用 |\n| --- | --- | --- |\n| 脚本 | 使用源码仓库自带的输入数据，快速运行某类算子的测试或调优 | 运行命令 |';
+  const raw='<table><thead><tr><th>入口</th><th>适合什么情况</th><th>怎么用</th></tr></thead><tbody><tr><td>脚本</td><td>使用源码仓库自带的输入数据，快速运行某类算子的测试或调优</td><td>运行命令</td></tr></tbody></table>';
+  const prepared=prepareTypography(raw,{theme:'technical',table_mode:'auto'},document,null);
+  const block=describeBlocks(source).find(x=>x.kind==='table');
+  const result=applyBlockOverrides(prepared.html,source,{[block.id]:{kind:'table',font_size:14,line_height:1.6,margin_before:12}},{document,annotate:true});
+  assert.deepEqual(result.unmatched,[]);
+  const cards=rootOf(result.html).querySelector('.wx-table-cards');
+  assert.equal(cards.getAttribute('data-article-block'),block.id);
+  assert.equal(cards.style.fontSize,'14px');
+  assert.equal(cards.querySelector('.wx-table-value').style.fontSize,'inherit');
+  assert.equal(cards.querySelector('.wx-table-value').style.lineHeight,'inherit');
+});
+
+test('paragraphs inside record cards cannot steal an outside paragraph identity',async()=>{
+  const {prepareTypography}=await import('../frontend/typography.mjs');
+  const source='独立段落。\n\n| 入口 | 说明 | 操作 |\n| --- | --- | --- |\n| 脚本 | <p>独立段落。</p> | 使用源码仓库自带的输入数据，快速运行某类算子的测试或调优 |';
+  const html='<p>独立段落。</p><table><tr><th>入口</th><th>说明</th><th>操作</th></tr><tr><td>脚本</td><td><p>独立段落。</p></td><td>使用源码仓库自带的输入数据，快速运行某类算子的测试或调优</td></tr></table>';
+  const prepared=prepareTypography(html,{theme:'technical'},document,null);
+  const paragraph=describeBlocks(source).find(x=>x.kind==='p');
+  const result=applyBlockOverrides(prepared.html,source,{[paragraph.id]:{kind:'p',font_size:18}},{document,annotate:true});
+  assert.deepEqual(result.unmatched,[]);
+  assert.equal(rootOf(result.html).querySelector('[data-article-block="'+paragraph.id+'"]').textContent,'独立段落。');
+});
+
 test('block identities survive insertions elsewhere and keep real UTF-16 CRLF offsets',()=>{
   ready();const source='# 标题😀\r\n\r\n第一段 **强调**。\r\n\r\n## 第二节\r\n';
   const before=describeBlocks(source),after=describeBlocks('新段落\r\n\r\n'+source);

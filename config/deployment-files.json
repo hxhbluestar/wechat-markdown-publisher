@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "2026.10.23-lab.1",
+  "release": "2026.10.23-table.1",
   "files": [
     "app/web/server.py",
     "app/web/rocm_import.py",
