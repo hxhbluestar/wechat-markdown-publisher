@@ -120,7 +120,7 @@ img { max-width: 100%; }
   z-index: 60;
 }
 .brand {
-  display: flex;
+  display: grid;
   align-items: center;
   width: 100%;
   gap: 12px;
@@ -132,9 +132,10 @@ img { max-width: 100%; }
   border-radius: var(--radius-md);
 }
 .brand:hover { background: var(--surface-muted); }
-.brand img { width: 44px; height: 44px; object-fit: cover; border-radius: 13px; box-shadow: var(--shadow-sm); }
+.brand .lab-logo { display: block; width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #dedfe3; border-radius: 8px; }
+.brand .lab-logo img { display: block; width: 100%; height: auto; object-fit: contain; border-radius: 0; }
 .brand span { display: grid; gap: 3px; }
-.brand strong { font-family: var(--display-font); font-size: 17px; letter-spacing: .04em; }
+.brand strong { font-family: var(--ui-font); font-size: 16px; letter-spacing: 0; }
 .brand small { color: var(--ink-faint); font-size: 11px; letter-spacing: .08em; }
 
 .primary-nav { display: grid; gap: 4px; margin-top: 32px; }

@@ -126,7 +126,7 @@ const state = {
 document.querySelector("#app").innerHTML = `
   <div class="editor-shell">
     <aside class="draft-sidebar">
-      <a class="editor-brand" href="/"><img src="/logo.png" alt="" width="42" height="42"><span><strong>星河炸鸡</strong><small>Markdown 创作</small></span></a>
+      <a class="editor-brand" href="/" aria-label="AMD ROCm Lab · 实验室内容归档"><span class="lab-logo"><img src="${__PUBLISHER_LOGO_URL__}" alt="" width="347" height="77"></span><span><strong>AMD ROCm Lab</strong><small>实验室 · Markdown 创作</small></span></a>
       <div class="sidebar-actions">
         <button class="primary-action" id="newDraft" type="button">＋ 新建文章</button>
         <button class="quiet-action" id="importMarkdown" type="button">导入 Markdown</button>
@@ -254,7 +254,7 @@ ${syncDialogMarkup()}
         <form class="account-form" id="accountForm">
           <div class="dialog-section-title"><strong>绑定新公众号</strong></div>
           <ol class="binding-steps"><li>进入公众号后台的“设置与开发 → 基本配置”</li><li>把本机公网出口 IP 加入接口白名单</li><li>复制 AppID 和 AppSecret，在下方完成验证</li></ol>
-          <label><span>账号名称</span><input id="accountName" maxlength="32" required placeholder="例如：星河炸鸡"></label>
+          <label><span>账号名称</span><input id="accountName" maxlength="32" required placeholder="例如：AMD ROCm Lab"></label>
           <label><span>AppID</span><input id="accountAppId" maxlength="64" required autocomplete="off" placeholder="wx…"></label>
           <label><span>AppSecret</span><input id="accountAppSecret" type="password" maxlength="128" required autocomplete="new-password" placeholder="仅保存到本机后端"></label>
           <div class="account-form-error" id="accountFormError" hidden></div>

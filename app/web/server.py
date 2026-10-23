@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-星河炸鸡 · 本地内容归档阅读器
+AMD ROCm Lab · 本地内容归档阅读器
 
 只读扫描既有归档目录，生成内存索引并提供分页、检索、结构化文章和
 支持 Range 的本地媒体服务。编辑器按用户操作导入 ROCm 博客或调用微信接口。
@@ -54,7 +54,7 @@ EDITOR_IMPORT_MAP_CSP = import_map_csp(WEB_DIR / 'editor' / 'index.html')
 ARCHIVE_DIR = Path(
     os.environ.get(
         "WECHAT_ARCHIVE_DIR",
-        PROJECT_DIR / "output" / "星河炸鸡_公众号全量归档",
+        PROJECT_DIR / "output" / "AMD ROCm Lab_公众号全量归档",
     )
 ).resolve()
 INDEX_CSV = ARCHIVE_DIR / "全量文章索引表.csv"
@@ -1115,7 +1115,7 @@ def query_int(query: dict[str, list[str]], key: str, default: int) -> int:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "StarArchive/1.0"
+    server_version = "AMDROCmLab/1.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(WEB_DIR), **kwargs)
@@ -1742,7 +1742,7 @@ def main() -> None:
     port = int(os.environ.get("ARCHIVE_PORT", "8899"))
     url = f"http://127.0.0.1:{port}"
     print()
-    print("  ✦ 星河炸鸡 · 本地内容归档")
+    print("  ✦ AMD ROCm Lab · 本地内容归档")
     print(f"  阅读地址  {url}")
     print(f"  文章数量  {len(CATALOG.articles)}")
     print(f"  归档目录  {ARCHIVE_DIR}")

@@ -6,10 +6,13 @@ import {createHash} from 'node:crypto';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const assets=path.join(root,'app/web/editor/assets');
+const logoDigest=createHash('sha256').update(await readFile(path.join(root,'app/web/logo.png'))).digest('hex').slice(0,16);
+const logoUrl='/logo.png?v='+logoDigest;
 await build({
   absWorkingDir:root,entryPoints:['frontend/editor-app.mjs'],
   outfile:path.join(assets,'index-20261018-workflow.js'),
   bundle:true,format:'esm',target:'es2022',minify:true,legalComments:'eof',external:['/editor/assets/*'],
+  define:{__PUBLISHER_LOGO_URL__:JSON.stringify(logoUrl)},
   plugins:[{name:'pinned-renderer-chunks',setup(api){
     api.onResolve({filter:/^\.\/.+\.js$/},args=>{
       if(args.importer.replaceAll('\\','/').endsWith('frontend/vendor/editor-engine-20261018.js'))
@@ -53,7 +56,7 @@ page=page.replace('src="/editor/assets/index-CIPbZpsp.js"','src="/editor/assets/
 // Stable content digests invalidate old browser entries without timestamps or
 // deleting the user's browser data. Replace the import-map target as well, so
 // renderer chunks reuse the exact same application module instance.
-const resources=new Set([...page.matchAll(/(?:src|href)="(\/[^"?]+\.(?:css|mjs|js))"/g)].map(match=>match[1]));
+const resources=new Set([...page.matchAll(/(?:src|href)="(\/[^"?]+\.(?:css|mjs|js|png))"/g)].map(match=>match[1]));
 for(const resource of resources){
   const bytes=await readFile(path.join(root,'app/web',resource.slice(1)));
   const digest=createHash('sha256').update(bytes).digest('hex').slice(0,16);
@@ -63,4 +66,13 @@ const release=JSON.parse(await readFile(path.join(root,'packaging/version.json')
 if(!/^[a-z0-9.-]+$/i.test(release))throw new Error('Invalid frontend release version');
 page=page.replace('<head>','<head>\n  <meta name="publisher-build" content="'+release+'">');
 await writeFile(path.join(root,'app/web/editor/index.html'),page);
+// The archive shares the same logo and can be reached from the editor brand.
+const archivePath=path.join(root,'app/web/index.html');
+let archive=await readText(archivePath);
+archive=archive.replace(/((?:src|href)=")\/?logo\.png(?:\?v=[^"\s]*)?"/g,'$1'+logoUrl+'"');
+for(const resource of ['style.css','app.js']){
+  const digest=createHash('sha256').update(await readFile(path.join(root,'app/web',resource))).digest('hex').slice(0,16);
+  archive=archive.replace(new RegExp('((?:src|href)=")'+resource.replace('.', '\\.')+'(?:\\?v=[^"\\s]*)?"','g'),'$1'+resource+'?v='+digest+'"');
+}
+await writeFile(archivePath,archive);
 console.log('Frontend built from readable application sources and pinned renderer runtime.');

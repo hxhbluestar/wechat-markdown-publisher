@@ -1200,7 +1200,7 @@ ${XD.trim()||KD}
 ${i}`}function BS(t){kd.reset({themeMode:"light"});const{html:e,readingTime:n}=rL(t,kd);return iL(e,n,kd)}function eM(t,e,n="warm",o={}){const r=prepareTypography(BS(t),{...o,theme:e,palette:n});return{html:r.html,css:MS(["grace","default","simple"].includes(e)?e:"default",n)+"\n"+r.css}}function tM(t,e,n="warm",o={}){const r=eM(t,e,n,o),i=`<section id="output">${r.html}</section>`;return J8.inlineContent(i,r.css,{inlinePseudoElements:!0,preserveImportant:!0,resolveCSSVariables:!0,removeStyleTags:!0}).replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,"").replace(/\sid="output"/g,"").replace(/\sdata-(?:source-code|raw-code|language-pending|show-line-number)="[^"]*"/g,"").replace(/\sclass="[^"]*"/g,"").replace(/<a([^>]+)href="#(?:[^"']*)"([^>]*)>/g,"<a$1$2>")}function el(t,e){if(!t||/^(?:https?:|data:|blob:|\/\/)/i.test(e))return e;const n=canonicalAssetPath(e,t);return n.startsWith("/")||n.split("/").includes("..")?e:`/api/editor/drafts/${encodeURIComponent(t)}/assets/${n.split("/").map(encodeURIComponent).join("/")}`}function nM(t,e){return t.replace(/(<img\b[^>]*\bsrc=["'])([^"']+)(["'])/gi,(n,r,i,s)=>`${r}${el(e,i)}${s}`)}const H={config:null,drafts:[],assets:[],accounts:[],current:null,editor:null,dirty:!1,previewTimer:0,previewMode:"wechat",theme:"technical",palette:"warm",sourceMode:"content",archive:null,archiveTimer:0,archiveSetupVisible:!1,pendingDeleteDraftId:""};document.querySelector("#app").innerHTML=`
   <div class="editor-shell">
     <aside class="draft-sidebar">
-      <a class="editor-brand" href="/"><img src="/logo.png" alt="" width="42" height="42"><span><strong>星河炸鸡</strong><small>Markdown 创作</small></span></a>
+      <a class="editor-brand" href="/"><img src="/logo.png" alt="" width="42" height="42"><span><strong>AMD ROCm Lab</strong><small>Markdown 创作</small></span></a>
       <div class="sidebar-actions">
         <button class="primary-action" id="newDraft" type="button">＋ 新建文章</button>
         <button class="quiet-action" id="importMarkdown" type="button">导入 Markdown</button>
@@ -1335,7 +1335,7 @@ ${typographyControlsMarkup()}
         <form class="account-form" id="accountForm">
           <div class="dialog-section-title"><strong>绑定新公众号</strong></div>
           <ol class="binding-steps"><li>进入公众号后台的“设置与开发 → 基本配置”</li><li>把本机公网出口 IP 加入接口白名单</li><li>复制 AppID 和 AppSecret，在下方完成验证</li></ol>
-          <label><span>账号名称</span><input id="accountName" maxlength="32" required placeholder="例如：星河炸鸡"></label>
+          <label><span>账号名称</span><input id="accountName" maxlength="32" required placeholder="例如：AMD ROCm Lab"></label>
           <label><span>AppID</span><input id="accountAppId" maxlength="64" required autocomplete="off" placeholder="wx…"></label>
           <label><span>AppSecret</span><input id="accountAppSecret" type="password" maxlength="128" required autocomplete="new-password" placeholder="仅保存到本机后端"></label>
           <div class="account-form-error" id="accountFormError" hidden></div>

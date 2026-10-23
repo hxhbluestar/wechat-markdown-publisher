@@ -1,6 +1,6 @@
 # 微信 Markdown 发布器
 
-在本机编辑 Markdown、管理图片与封面，并通过微信公众号官方接口同步到草稿箱。附带本地文章归档阅读器和公众号归档工具，保留现有“星河炸鸡”应用界面。
+在本机编辑 Markdown、管理图片与封面，并通过微信公众号官方接口同步到草稿箱。附带本地文章归档阅读器和公众号归档工具，使用 AMD ROCm Lab 实验室专用界面。
 
 ## 功能
 
@@ -33,7 +33,7 @@ cd wechat-markdown-publisher
 python -m pip install beautifulsoup4==4.15.0 Pillow==12.3.0
 npm ci --ignore-scripts
 npm run build
-New-Item -ItemType Directory -Force app/output/星河炸鸡_公众号全量归档 | Out-Null
+New-Item -ItemType Directory -Force 'app/output/AMD ROCm Lab_公众号全量归档' | Out-Null
 python app/web/server.py
 ```
 

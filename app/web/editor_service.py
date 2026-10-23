@@ -682,7 +682,7 @@ class WechatOpenAPI:
         return self._json_request("POST", self._url(endpoint), payload)
 
     def _upload(self, endpoint: str, path: Path, **query: str) -> dict[str, Any]:
-        boundary = f"----StarArchive{secrets.token_hex(12)}"
+        boundary = f"----AMDROCmLab{secrets.token_hex(12)}"
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         safe_name = f"upload{path.suffix.lower()}"
         body = (

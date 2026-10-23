@@ -52,7 +52,7 @@ def write_article(
                 comments.json    - 评论 JSON
 
     参数:
-        root_dir: 归档根目录（如 星河炸鸡_公众号全量归档/）
+        root_dir: 归档根目录（如 AMD ROCm Lab_公众号全量归档/）
         article_info: 文章信息
         parsed: 解析后的文章内容
         comments: 评论列表（可选）
@@ -275,7 +275,7 @@ def write_archive_readme(
 - **归档时间**: {now}
 - **文章总数**: {total_articles} 篇
 - **数据范围**: {date_range}
-- **导出工具**: 星河炸鸡公众号归档工具 v1.0
+- **导出工具**: AMD ROCm Lab公众号归档工具 v1.0
 
 ## 目录结构
 

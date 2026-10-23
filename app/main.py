@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-星河炸鸡 - 公众号全量归档工具
+AMD ROCm Lab - 公众号全量归档工具
 =================================
 一键归档公众号所有历史文章到本地，按标准目录结构存储。
 
@@ -95,7 +95,7 @@ def load_config(config_path: str = "config.yaml") -> dict:
     if not os.path.exists(default_path):
         logger.warning(f"配置文件不存在: {default_path}，使用默认配置")
         return {
-            "account_name": "星河炸鸡",
+            "account_name": "AMD ROCm Lab",
             "output_dir": "./output",
             "date_from": "",
             "date_to": "",
@@ -557,7 +557,7 @@ class WeChatArchiver:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="星河炸鸡 - 公众号全量归档工具",
+        description="AMD ROCm Lab - 公众号全量归档工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

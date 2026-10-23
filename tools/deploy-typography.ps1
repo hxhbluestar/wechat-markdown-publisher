@@ -150,6 +150,7 @@ function New-TypographyChanges {
         $Allowed = $false
         if ($Relative -match '^app/web/([^/]+\.py)$') { $Allowed = $Matches[1] -cin $Backend }
         if ($Relative -ceq 'app/web/editor/index.html' -or $Relative -cmatch '^app/web/editor/assets/[A-Za-z0-9_.-]+\.(?:js|mjs|css)$') { $Allowed = $true }
+        if ($Relative -cin @('app/main.py','app/modules/organizer.py','app/web/app.js','app/web/index.html','app/web/style.css','app/web/logo.png','app/web/offline-manifest.json')) { $Allowed = $true }
         if ($Relative -cin @('app/web/vendor/highlight-powershell-11.11.1.min.js','app/web/vendor/highlight-extras-11.11.1.js','app/web/vendor/highlight-ai-20261017.js','app/web/vendor/README.md','app/web/vendor/mathjax-3.2.2/tex-svg.js','app/web/vendor/mathjax-3.2.2/LICENSE')) { $Allowed = $true }
         if (-not $Allowed) { throw 'Deployment manifest includes a path outside the code/static allowlist' }
         $Files += $Relative

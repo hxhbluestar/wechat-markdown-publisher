@@ -1,5 +1,5 @@
 /**
- * 星河炸鸡 · 本地内容归档
+ * AMD ROCm Lab · 本地内容归档
  * 原生 SPA：分页、全文检索、三类文章模板、灯箱、媒体控制和阅读偏好。
  */
 
@@ -165,7 +165,7 @@ function updateChrome(route) {
   const [kicker, title] = titles[route.name] || titles.home;
   E.pageKicker.textContent = kicker;
   E.pageTitle.textContent = title;
-  document.title = `${title} · 星河炸鸡`;
+  document.title = `${title} · AMD ROCm Lab`;
   document.querySelectorAll("[data-route]").forEach((button) => {
     const target = button.dataset.route;
     const active =
@@ -423,7 +423,7 @@ async function renderArticle(articleId, token) {
   S.galleryArticle = article;
   S.galleryVisible = 24;
   E.pageTitle.textContent = article.title;
-  document.title = `${article.title} · 星河炸鸡`;
+  document.title = `${article.title} · AMD ROCm Lab`;
   const galleryBefore = article.type === "gallery";
   const media = mediaSection(article);
   const gallery = articleGallery(article, galleryBefore ? "gallery" : "appendix");

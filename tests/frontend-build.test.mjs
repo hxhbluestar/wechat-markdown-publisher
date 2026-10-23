@@ -11,7 +11,8 @@ test('built page versions every executable and stylesheet by its file contents a
   const result=spawnSync(process.execPath,['tools/build-frontend.mjs'],{cwd:root,encoding:'utf8'});
   assert.equal(result.status,0,result.stderr);
   const {document}=parseHTML(readFileSync(new URL('app/web/editor/index.html',root),'utf8'));
-  const nodes=[...document.querySelectorAll('script[src],link[rel="stylesheet"]')];
+  const {document:archive}=parseHTML(readFileSync(new URL('app/web/index.html',root),'utf8'));
+  const nodes=[...document.querySelectorAll('script[src],link[rel="stylesheet"],link[rel="icon"]'),...archive.querySelectorAll('link[rel="icon"],.brand img')];
   for(const node of nodes){
     const url=new URL(node.getAttribute('src')||node.getAttribute('href'),'http://publisher.test');
     const bytes=readFileSync(new URL('app/web'+url.pathname,root));
