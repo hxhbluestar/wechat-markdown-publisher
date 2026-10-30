@@ -7,7 +7,7 @@ import {scanCodeRegions} from './technical-writing.mjs';
 export function prepareCjkStrong(source) {
  const {mask}=scanCodeRegions(source);
  for(const match of source.matchAll(/<[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>|!?\[[^\]\r\n]*\]\((?:\\.|[^)\\])*\)|\b(?:https?|file):[^\s<>]+/g))mask.fill(1,match.index,match.index+match[0].length);
- const pattern=/\*\*([\p{L}\p{N}][\p{L}\p{N} \t，、；：。！？（）【】《》“”‘’,:;.!?()/+\-]{0,119}[，、；：。！？）】》”’])\*\*(?=[A-Za-z0-9])/gu;
+ const pattern=/\*\*([\p{L}\p{N}][\p{L}\p{N} \t，、；：。！？（）【】《》“”‘’,:;.!?()/+\-]{0,119}[，、；：。！？）】》”’])\*\*(?=[\p{L}\p{N}])/gu;
  return source.replace(pattern,(whole,label,at)=>{
   if(source[at-1]==='*'||mask.slice(at,at+whole.length).some(Boolean))return whole;
   let slashes=0;for(let i=at-1;i>=0&&source[i]==='\\';i--)slashes++;

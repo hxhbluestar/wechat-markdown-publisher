@@ -60,7 +60,7 @@ const showCodeTheme=codeTheme=>{
 try {
  const entry=new DOMParser().parseFromString(await fetch('/editor/').then(r=>r.text()),'text/html');
  const renderer=await import(entry.querySelector('script[type="module"][crossorigin]').getAttribute('src'));
- for(const text of ['395/128GB','Qwen','1.5.10']) {
+ for(const text of ['395/128GB','Qwen','1.5.10','以下为各自配置']) {
   const md='**公开性能：**'+text;
   samples.innerHTML=renderer.exportWechatArticle(md,'technical','blue',{});
   check(samples.querySelector('strong')?.textContent==='公开性能：','Chinese punctuation label exports as strong before '+text);
