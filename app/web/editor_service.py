@@ -780,13 +780,13 @@ class WechatPublisher:
     def _local_image(self, store: DraftStore, draft_id: str, source: str) -> Path:
         source = html.unescape(source.strip())
         parsed = urllib.parse.urlparse(source)
-        if parsed.scheme in ("http", "https") or source.startswith("//"):
+        if parsed.scheme or parsed.netloc or source.startswith("//"):
             raise EditorError(f"正文包含网络图片，请先下载为本地素材：{source[:100]}")
         prefix = f"/api/editor/drafts/{draft_id}/assets/"
-        if source.startswith(prefix):
-            relative = source[len(prefix) :]
+        if parsed.path.startswith(prefix):
+            relative = parsed.path[len(prefix) :]
         else:
-            relative = source[2:] if source.startswith("./") else source
+            relative = parsed.path[2:] if parsed.path.startswith("./") else parsed.path
         path=store.asset_path(draft_id, relative)
         if path.suffix.lower() not in ALLOWED_IMAGE_EXTS or path.stat().st_size>MAX_IMAGE_BYTES:
             raise EditorError('公众号正文图片必须是有效的 JPG、PNG、GIF 或 WebP 图片')

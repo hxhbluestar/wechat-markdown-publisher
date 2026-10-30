@@ -35,6 +35,16 @@ def archive(entries):
     return stream.getvalue()
 
 class FolderImportTests(unittest.TestCase):
+    def test_publisher_resolves_query_fragment_without_accepting_protocols(self):
+        prepared=self.prepare()
+        with tempfile.TemporaryDirectory() as tmp:
+            store=DraftStore(Path(tmp)/'drafts');d=store.create_prepared(prepared['content'],prepared['metadata'],assets=prepared['assets'])
+            publisher=WechatPublisher(object())
+            expected=store.asset_path(d['id'],'assets/图 一.png')
+            for source in ['assets/图%20一.png?v=1#figure',f'/api/editor/drafts/{d["id"]}/assets/assets/图%20一.png?v=1']:
+                self.assertEqual(publisher._local_image(store,d['id'],source),expected)
+            with self.assertRaises(EditorError):publisher._local_image(store,d['id'],'javascript:assets/图%20一.png')
+
     def prepare(self,content='# Article\n\n![图](assets/图%20一.png)',extras=()):
         self.assertIsNotNone(folder_import)
         return folder_import.prepare_folder_import(archive([('正文.md',content.encode()),('assets/图 一.png',PNG),*extras]),'正文.md','Folder')
