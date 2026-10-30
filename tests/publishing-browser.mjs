@@ -60,6 +60,12 @@ const showCodeTheme=codeTheme=>{
 try {
  const entry=new DOMParser().parseFromString(await fetch('/editor/').then(r=>r.text()),'text/html');
  const renderer=await import(entry.querySelector('script[type="module"][crossorigin]').getAttribute('src'));
+ for(const text of ['395/128GB','Qwen','1.5.10']) {
+  const md='**公开性能：**'+text;
+  samples.innerHTML=renderer.exportWechatArticle(md,'technical','blue',{});
+  check(samples.querySelector('strong')?.textContent==='公开性能：','Chinese punctuation label exports as strong before '+text);
+  check(samples.textContent.trim()==='公开性能：'+text,'Chinese emphasis exports without literal stars or added spacing');
+ }
  result.gutterMeasurements=[];
  for(const theme of ['technical','journal','dracula']) for(const size of [12,14]) for(const mode of ['wrap','scroll']) for(const count of [10,100]) {
   const source=Array.from({length:count},(_,i)=>i===1?'echo "'+('ROCm '.repeat(25))+'"':`echo "GPU ${i+1}"`).join('\n');

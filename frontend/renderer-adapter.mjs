@@ -4,13 +4,14 @@ import { prepareTypography, typographyAccent } from "./typography.mjs";
 import { preparePublishingPresentation, preserveWechatCodeLayout } from "./publishing-presentation.mjs";
 import { applyBlockOverrides } from "./article-blocks.mjs";
 import { prepareRichMarkdown } from "./rich-content.mjs";
+import { prepareCjkStrong } from "./cjk-strong.mjs";
 const lexer = new AS();
 export const lexArticleMarkdown = (text) => {
   const { markdownContent: content } = kd.parseFrontMatterAndContent(text);
   return { content, tokens: lexer.lexer(content) };
 };
 export const renderMarkdownSource = (markdown) =>
-  BS(prepareRichMarkdown(markdown));
+  BS(prepareCjkStrong(prepareRichMarkdown(markdown)));
 export function stripExportDecorations(html, document = globalThis.document) {
   const host = document.createElement("div");
   host.innerHTML = html;
