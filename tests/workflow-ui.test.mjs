@@ -4,6 +4,73 @@ import {parseHTML} from 'linkedom';
 import {workflowMarkup,connectWorkflowUI} from '../frontend/workflow-ui.mjs';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+const importReport={title:'Imported',preview_content:'# Imported',report:{before:{images:1,fences:0,tables:0},after:{images:1,fences:0,tables:0},conversions:[],warnings:[]},duplicates:[]};
+const importConfirm=h=>[...h.document.querySelectorAll('#importResult button')].find(b=>b.textContent==='确认导入为新稿');
+const pickWorkbench=(h,file)=>{const input=h.document.querySelector('#workbenchFile');input.files=[file];h.event(input,'change');return input;};
+
+test('large ZIP packages stay as raw Blob for preview and commit, without base64 or duplicate commits',async()=>{
+ const h=harness(),saving=deferred(),committing=deferred(),opened=[];let saves=0;
+ const zip=new File([new Uint8Array(14*1024*1024)],'视频 文章包.zip');
+ Object.defineProperty(zip,'arrayBuffer',{value:()=>{throw Error('ZIP must not be read into base64');}});
+ h.a.beforeImport=async()=>{saves++;await saving.promise;};h.a.onImported=async draft=>opened.push(draft);
+ h.a.request=async(url,p)=>{h.requests.push({url,p});if(new URL(url,'http://test').searchParams.get('preview_only')==='1')return {...importReport,duplicates:[{id:'existing'}]};return committing.promise;};
+ const w=connectWorkflowUI(h.document,h.a);await w.open('import');const input=pickWorkbench(h,zip);await tick();
+ assert.equal(h.requests.length,1);const preview=h.requests[0],url=new URL(preview.url,'http://test');
+ assert.equal(url.pathname,'/api/editor/import-package');assert.equal(url.searchParams.get('filename'),zip.name);assert.equal(url.searchParams.get('preview_only'),'1');
+ assert.equal(preview.p.body,zip);assert.equal(new Headers(preview.p.headers).get('Content-Type'),'application/zip');
+ const confirm=importConfirm(h);assert.ok(confirm);h.click(confirm);await tick();assert.equal(saves,0,'duplicate choice is required before saving');
+ h.document.querySelector('#importResult input[type="checkbox"]').checked=true;
+ h.click(confirm);h.click(confirm);await tick();assert.equal(saves,1);
+ input.files=[new File(['other'],'other.zip')];h.event(input,'change');saving.resolve();await tick();
+ assert.equal(h.requests.length,2);const commit=h.requests[1],commitUrl=new URL(commit.url,'http://test');
+ assert.equal(commitUrl.pathname,'/api/editor/import-package');assert.equal(commitUrl.searchParams.get('filename'),zip.name);assert.equal(commitUrl.searchParams.get('allow_duplicate'),'1');assert.equal(commitUrl.searchParams.has('preview_only'),false);assert.equal(commit.p.body,zip);
+ committing.resolve({draft:{id:'created'}});await tick();assert.deepEqual(opened,[{id:'created'}]);w.destroy();
+});
+
+test('a slow old file read cannot replace or commit a newer ZIP selection',async()=>{
+ const h=harness(),reading=deferred(),zip=new File(['PK archive'],'current.zip');
+ h.a.request=async(url,p)=>{h.requests.push({url,p});return new URL(url,'http://test').searchParams.get('preview_only')==='1'?importReport:{draft:{id:'zip-copy'}};};
+ const w=connectWorkflowUI(h.document,h.a);await w.open('import');
+ pickWorkbench(h,{name:'old.md',size:3,arrayBuffer:()=>reading.promise});pickWorkbench(h,zip);await tick();
+ reading.resolve(new TextEncoder().encode('# A').buffer);await tick();
+ assert.equal(h.requests.length,1);assert.equal(h.requests[0].p.body,zip);
+ h.click(importConfirm(h));await tick();assert.equal(h.requests.length,2);assert.equal(h.requests[1].p.body,zip);w.destroy();
+});
+
+test('a report button from an older ZIP cannot commit the current selection',async()=>{
+ const h=harness();h.a.request=async(url,p)=>{h.requests.push({url,p});return importReport;};
+ const w=connectWorkflowUI(h.document,h.a);await w.open('import');pickWorkbench(h,new File(['PK one'],'one.zip'));await tick();
+ const old=importConfirm(h);pickWorkbench(h,new File(['PK two'],'two.zip'));await tick();h.click(old);await tick();
+ assert.equal(h.requests.length,2);assert.ok(h.requests.every(v=>new URL(v.url,'http://test').searchParams.get('preview_only')==='1'));w.destroy();
+});
+
+test('non-ZIP import keeps its JSON/base64 request and 12 MiB limit; ZIP uses a 256 MiB limit',async()=>{
+ const h=harness();h.a.request=async(url,p)=>{h.requests.push({url,p});return importReport;};
+ const w=connectWorkflowUI(h.document,h.a);await w.open('import');pickWorkbench(h,new File(['# 正文'],'article.md'));await tick();
+ assert.equal(h.requests[0].url,'/api/editor/import');const payload=JSON.parse(h.requests[0].p.body);assert.equal(payload.filename,'article.md');assert.equal(payload.preview_only,true);assert.equal(Buffer.from(payload.data,'base64').toString(),'# 正文');
+ pickWorkbench(h,{name:'big.docx',size:12*1024*1024+1,arrayBuffer:()=>{throw Error('must not read');}});await tick();assert.match(h.document.querySelector('#workflowMessage').textContent,/12MiB/);assert.equal(h.requests.length,1);
+ pickWorkbench(h,{name:'big.zip',size:256*1024*1024+1,arrayBuffer:()=>{throw Error('must not read');}});await tick();assert.match(h.document.querySelector('#workflowMessage').textContent,/256\s*MiB/);assert.equal(h.requests.length,1);w.destroy();
+});
+
+test('package commit stops when saving fails or the draft switches during the pre-import save',async()=>{
+ for(const change of [()=>{throw Error('save failed');},h=>{h.draft.id='other';}]) {
+  const h=harness();h.a.request=async(url,p)=>{h.requests.push({url,p});return importReport;};h.a.beforeImport=async()=>change(h);
+  const w=connectWorkflowUI(h.document,h.a);await w.open('import');pickWorkbench(h,new File(['PK bytes'],'article.zip'));await tick();h.click(importConfirm(h));await tick();
+  assert.equal(h.requests.length,1);assert.match(h.document.querySelector('#workflowMessage').textContent,/save failed|稿件已切换/);w.destroy();
+ }
+});
+
+test('a completed package refreshes the draft list after close or a draft switch without reopening the imported article',async()=>{
+ for(const change of [h=>h.click(h.document.querySelector('#closeWorkflow')),h=>{h.draft.id='other';}]) {
+  const h=harness(),committing=deferred(),events=[];
+  h.a.request=async(url,p)=>{if(new URL(url,'http://test').searchParams.get('preview_only')==='1')return importReport;events.push('commit');return committing.promise;};
+  h.a.refreshDrafts=async()=>{events.push('refresh');};h.a.onImported=async()=>{events.push('open');};
+  const w=connectWorkflowUI(h.document,h.a);await w.open('import');pickWorkbench(h,new File(['PK bytes'],'article.zip'));await tick();h.click(importConfirm(h));await tick();
+  assert.deepEqual(events,['commit']);change(h);const visibleId=h.draft.id;
+  committing.resolve({draft:{id:'imported'}});await tick();await tick();
+  assert.deepEqual(events,['commit','refresh']);assert.equal(h.draft.id,visibleId);assert.equal(h.draft.content,'# Text');w.destroy();
+ }
+});
 
 test('account and cover blockers offer direct navigation to their editable controls',async()=>{
  const h=harness(),selected=[];h.a.selectIssue=issue=>selected.push(issue.field);

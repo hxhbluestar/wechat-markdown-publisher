@@ -57,6 +57,7 @@ FILES = (
     "app/web/vendor/README.md",
     "app/web/draft_history.py",
     "app/web/article_import.py",
+    "app/web/folder_import.py",
     "app/web/article_package.py",
     "app/web/asset_workbench.py",
     "app/web/asset_service.py",

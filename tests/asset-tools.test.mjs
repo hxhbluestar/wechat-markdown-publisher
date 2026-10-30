@@ -25,6 +25,19 @@ test('reference-image rewrites leave shared hyperlink definitions intact', () =>
   assert.ok(result.includes('![图2](images/new%20file.png)'));
 });
 
+test('folder image rewrites support assets paths while attachments and source code stay unchanged', () => {
+  const source='![图片](assets/图%20一.png)\n[视频](assets/clip.mp4)\n[说明](assets/说明.md)\n`![图片](assets/图%20一.png)`';
+  const result=rewriteImageSources(source,'assets/图 一.png','assets/nested/new 图.png');
+  assert.ok(result.startsWith('![图片](assets/nested/new%20图.png)'));
+  assert.ok(result.includes('[视频](assets/clip.mp4)\n[说明](assets/说明.md)'));
+  assert.ok(result.endsWith('`![图片](assets/图%20一.png)`'));
+  assert.throws(()=>rewriteImageSources(source,'assets/图 一.png','assets/clip.mp4'), /asset|path/i);
+});
+
+test('image rewrites resolve legacy assets references using the known inventory', () => {
+  assert.equal(rewriteImageSources('![图](assets/a.png)','images/assets/a.png','images/new.png',{availableAssets:[{path:'images/assets/a.png'}]}),'![图](images/new.png)');
+});
+
 test('same-draft local aliases normalize but remote replacements match the exact image URL', () => {
   const source = '![a](./images/a.png)\n![b](/api/editor/drafts/draft-one/assets/images/a.png)\n![r](https://example.org/a.png?x=1)\n![r2](https://example.org/a.png?x=2)';
   const local = rewriteImageSources(source, 'images/a.png', 'images/local.png', { draftId: 'draft-one' });
@@ -82,6 +95,46 @@ test('asset inventory safely shows dimensions, frames, references, duplicates an
   assert.match(text, /images\/source.png/);
   assert.equal(h.document.querySelectorAll('#assetToolsList script').length, 0);
   assert.equal(h.document.querySelectorAll('#assetToolsList img').length, 0);
+  h.ui.destroy();
+});
+
+test('folder videos and attachments are passive previews/downloads, never image-edit selections', async () => {
+  const h=harness();
+  h.inventory.splice(0,h.inventory.length,
+    {path:'assets/原图.png',kind:'image',width:640,height:480,size:100},
+    {path:'assets/演示.mp4',kind:'video',content_type:'video/mp4',size:200},
+    {path:'assets/图片来源说明.md',kind:'attachment',content_type:'text/markdown',size:50},
+    {path:'assets/<script>.html',kind:'attachment',content_type:'text/html',size:25});
+  await h.ui.open();
+  const list=h.document.querySelector('#assetToolsList');
+  assert.equal(list.querySelectorAll('[data-asset-select]').length,1);
+  assert.equal(list.querySelector('[data-asset-select]').dataset.assetSelect,'assets/原图.png');
+  assert.equal(list.querySelectorAll('video').length,1);
+  assert.equal(list.querySelector('video').getAttribute('src'),'/api/editor/drafts/draft-one/assets/assets/演示.mp4');
+  assert.equal(list.querySelectorAll('a[download]').length,2);
+  assert.equal(list.querySelectorAll('script,iframe,object,embed').length,0);
+  assert.equal(list.querySelectorAll('img').length,0);
+  assert.ok(list.textContent.includes('图片来源说明.md'));
+  assert.equal(h.document.querySelector('#assetDerive').disabled,true);
+  const trigger=h.document.createElement('button');trigger.dataset.assetSelect='assets/演示.mp4';list.append(trigger);
+  event(h.document,trigger);await tick();
+  assert.equal(h.document.querySelector('#assetDerive').disabled,true);
+  assert.equal(h.calls.filter(call=>call.options?.method==='POST').length,0);
+  h.ui.destroy();
+});
+
+test('attachment cards cannot turn a foreign preview URL or image-looking download into an image action', async () => {
+  const h=harness();
+  h.inventory.splice(0,h.inventory.length,
+    {path:'assets/demo.mp4',kind:'video',size:100},
+    {path:'assets/download.png',kind:'attachment',size:50});
+  h.a.assetUrl=()=> 'https://example.org/unrequested-file';
+  await h.ui.open();
+  const list=h.document.querySelector('#assetToolsList');
+  assert.equal(list.querySelectorAll('a,video,img,[data-asset-select]').length,0);
+  assert.ok(list.textContent.includes('demo.mp4'));
+  assert.ok(list.textContent.includes('download.png'));
+  assert.equal(h.document.querySelector('#assetDerive').disabled,true);
   h.ui.destroy();
 });
 

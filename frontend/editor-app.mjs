@@ -3,6 +3,8 @@ import {
   createMarkdownImporter,
   connectMarkdownFilePicker,
 } from "./markdown-import.mjs";
+import {createFolderImporter,connectFolderFilePicker,chooseFolderEntry} from "./folder-import.mjs";
+import {resolvePreviewAssets} from "./preview-assets.mjs";
 import { syncDialogMarkup, connectEditorLayout } from "./editor-layout.mjs";
 import {
   createRecoveryController,
@@ -84,16 +86,13 @@ import {
 } from "./renderer-adapter.mjs";
 function assetUrl(t, e) {
   if (!t || /^(?:https?:|data:|blob:|\/\/)/i.test(e)) return e;
-  const n = canonicalAssetPath(e, t);
+  const n = canonicalAssetPath(e, t, state.current?.id === t ? state.assets : []);
   return n.startsWith("/") || n.split("/").includes("..")
     ? e
     : `/api/editor/drafts/${encodeURIComponent(t)}/assets/${n.split("/").map(encodeURIComponent).join("/")}`;
 }
 function replaceAssetUrls(t, e) {
-  return t.replace(
-    /(<img\b[^>]*\bsrc=["'])([^"']+)(["'])/gi,
-    (n, r, i, s) => `${r}${assetUrl(e, i)}${s}`,
-  );
+  return resolvePreviewAssets(t,{document,draftId:e,assets:state.assets});
 }
 function imageReferences(text) {
   return [
@@ -102,7 +101,7 @@ function imageReferences(text) {
         ...text.matchAll(
           /!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^"']*["'])?\s*\)/g,
         ),
-      ].map((m) => canonicalAssetPath(m[1] || m[2] || "", state.current?.id)),
+      ].map((m) => canonicalAssetPath(m[1] || m[2] || "", state.current?.id, state.assets)),
     ),
   ];
 }
@@ -130,9 +129,11 @@ document.querySelector("#app").innerHTML = `
       <a class="editor-brand" href="/" aria-label="AMD ROCm Lab · 实验室内容归档"><span class="lab-logo"><img src="${__PUBLISHER_LOGO_URL__}" alt="" width="347" height="77"></span><span><strong>AMD ROCm Lab</strong><small>实验室 · Markdown 创作</small></span></a>
       <div class="sidebar-actions">
         <button class="primary-action" id="newDraft" type="button">＋ 新建文章</button>
-        <button class="quiet-action" id="importMarkdown" type="button">导入 Markdown</button>
+        <button class="quiet-action" id="importFolder" type="button">导入文章文件夹</button>
+        <button class="quiet-action markdown-only-import" id="importMarkdown" type="button">仅导入 Markdown</button>
 ${rocmImportMarkup()}
         <input id="markdownFile" type="file" accept=".md,.markdown,text/markdown" hidden>
+        <input id="articleFolder" type="file" webkitdirectory directory multiple hidden>
       </div>
       <button class="wechat-config-entry needs-binding" id="wechatConfigEntry" type="button">
         <span class="wechat-entry-icon">公众号</span>
@@ -169,9 +170,9 @@ ${proofreadingMarkup()}
       </div>
 
       <section class="empty-editor" id="emptyEditor">
-        <span>✦</span><h1>写好的 Markdown，直接在这里完成排版与发布。</h1>
-        <p>选择 .md 文件即可开始编辑，也可以新建文章。</p>
-        <button class="primary-action" type="button" data-open-import>选择 Markdown</button>
+        <span>✦</span><h1>整篇文章与附件，一次导入。</h1>
+        <p>选择包含 Markdown 和 assets/ 的文件夹，图片与附件会自动关联。</p>
+        <button class="primary-action" type="button" data-open-folder-import>选择文章文件夹</button>
       </section>
 
       <nav class="workspace-view-switch" aria-label="工作区视图"><button type="button" data-workspace-view="source" aria-pressed="true">编辑</button><button type="button" data-workspace-view="preview" aria-pressed="false">预览</button></nav>
@@ -381,7 +382,7 @@ const editorLayout = connectEditorLayout(document, {
 });
 async function request(t, e = {}) {
   const n = new Headers(e.headers);
-  (e.body && n.set("Content-Type", "application/json"),
+  (e.body && !n.has("Content-Type") && n.set("Content-Type", "application/json"),
     state.config && n.set("X-Editor-Token", state.config.csrf_token));
   const r = await fetch(t, { ...e, headers: n }),
     i = await r.json().catch(() => ({}));
@@ -460,6 +461,7 @@ const saveDraft = createDraftSaver({
 });
 workflow = connectWorkflowUI(document, {
   request,
+  refreshDrafts: loadDrafts,
   getDraft: () => state.current,
   getContent,
   getMetadata: readMetadata,
@@ -476,10 +478,13 @@ workflow = connectWorkflowUI(document, {
       throw new Error("当前修改尚未成功保存，请保存或另存副本后继续");
   },
   onImported: async (draft) => {
+    const sourceId=state.current?.id||null;
     await loadDrafts();
+    if((state.current?.id||null)!==sourceId)throw new Error("新稿已保存；当前稿件已切换，请从列表打开新稿");
     if (state.dirty && !(await saveDraft()))
       throw new Error("新稿已保存；当前仍有新输入，请先保存后从列表打开新稿");
-    await openDraft(draft.id);
+    if((state.current?.id||null)!==sourceId||state.dirty)throw new Error("新稿已保存；当前输入已变化，请从列表打开新稿");
+    await openDraft(draft.id,{preserveChanges:true});
   },
   onConflictCopy: async (draft, local) => {
     await loadDrafts();
@@ -781,13 +786,13 @@ function renderAssets() {
   if (!state.current) return;
   const t = imageReferences(getContent()),
     e = new Set(t),
-    n = state.assets.filter((u) => u.path.startsWith("images/")),
+    n = state.assets.filter((u) => /^(?:images|assets)\//.test(u.path)),
     r = new Set(state.assets.map((u) => u.path)),
     i = t.filter((u) => !isRemoteImage(u) && !r.has(u)),
     s = t.filter(isRemoteImage);
   ((ui.assetCount.textContent = String(n.length)),
     (ui.assetSummary.textContent = n.length
-      ? `${n.length} 张 · ${e.size} 处引用`
+      ? `${n.filter(u=>/\.(?:jpe?g|png|gif|webp)$/i.test(u.path)).length} 张图片 · ${n.filter(u=>! /\.(?:jpe?g|png|gif|webp)$/i.test(u.path)).length} 个附件 · ${e.size} 处图片引用`
       : "暂无图片"));
   const a = [];
   (i.length && a.push(`有 ${i.length} 个本地引用尚未上传`),
@@ -805,6 +810,10 @@ function renderAssets() {
           .map((u) => {
             const l = e.has(u.path),
               c = assetUrl(state.current.id, u.path);
+            if(!/\.(?:jpe?g|png|gif|webp)$/i.test(u.path)) {
+              const video=u.kind==='video';
+              return `<article class="asset-card attachment-card">${video?`<video class="attachment-video" controls preload="metadata" src="${escapeHtml(c)}"></video>`:'<div class="attachment-icon" aria-hidden="true">▤</div>'}<div><strong title="${escapeHtml(u.path)}">${escapeHtml(assetBasename(u.path))}</strong><span>${escapeHtml(formatBytes(u.size))} · ${video?'视频附件':'随稿附件'}</span></div><a class="field-button" href="${escapeHtml(c)}" target="_blank" rel="noopener noreferrer">${video?'打开视频':'下载附件'}</a>${video?'<small>发布视频需在公众号后台插入</small>':''}</article>`;
+            }
             return `<article class="asset-card">
       <a class="asset-thumb" href="${escapeHtml(c)}" target="_blank" rel="noreferrer"><img src="${escapeHtml(c)}" alt="${escapeHtml(assetBasename(u.path))}"></a>
       <div><strong title="${escapeHtml(u.path)}">${escapeHtml(assetBasename(u.path))}</strong><span>${escapeHtml(formatBytes(u.size))} · ${l ? "正文已引用" : "尚未引用"}</span></div>
@@ -812,7 +821,7 @@ function renderAssets() {
     </article>`;
           })
           .join("")
-      : '<div class="asset-empty"><span>▧</span><strong>还没有正文图片</strong><p>添加图片后会自动插入 Markdown，并在这里集中预览。</p></div>'));
+      : '<div class="asset-empty"><span>▧</span><strong>还没有文章素材</strong><p>导入文章文件夹即可一次关联全部图片和附件。</p></div>'));
 }
 async function loadAssets() {
   if (!state.current) return;
@@ -823,6 +832,7 @@ async function loadAssets() {
     );
     if (state.current?.id !== t) return;
     ((state.assets = e.items), renderAssets(), renderPreflight());
+    schedulePreview();
   } catch (e) {
     ((state.assets = []),
       renderAssets(),
@@ -1597,6 +1607,30 @@ connectRocmImport(document, {
     toast("已导入 ROCm 博客，正文与配图已保存到本地");
   },
 });
+const importFolder = createFolderImporter({
+  getDraftId: () => state.current?.id || null,
+  isDirty: () => state.dirty,
+  saveDraft,
+  uploadFolder: async (bundle) => {
+    if (!state.config) throw new Error("编辑服务未连接，请刷新页面后重试");
+    toast(`正在上传 ${bundle.attachmentCount} 份素材（含 ${bundle.imageCount} 张图片）…`);
+    return request(`/api/editor/import-folder?entry=${encodeURIComponent(bundle.entry)}&folder=${encodeURIComponent(bundle.folderName)}`,{
+      method:"POST",headers:{"Content-Type":"application/zip"},body:bundle.body,
+    });
+  },
+  refreshDrafts: loadDrafts,
+  openDraft,
+  chooseEntry: candidates => chooseFolderEntry(document,candidates),
+});
+connectFolderFilePicker(document,{
+  onFiles: async files => {
+    toast("正在读取文章文件夹…");
+    const result=await importFolder(files);
+    if(!result||result.cancelled)return;
+    toast(result.opened ? `已导入文章及 ${result.bundle.attachmentCount} 个附件` : "文章与附件已导入，可从稿件列表打开");
+  },
+  onError: error=>toast(error.message,true),
+});
 const importMarkdown = createMarkdownImporter({
   getDraftId: () => state.current?.id || null,
   isDirty: () => state.dirty,
@@ -1652,7 +1686,7 @@ query("#imageFiles").addEventListener("change", async (t) => {
       for (const i of n) {
         if (state.current?.id !== draftId)
           throw new Error("稿件已切换，停止后续图片上传");
-        const target = imageUploadTarget(i.name, imageReferences(getContent()));
+        const target = imageUploadTarget(i.name, imageReferences(getContent()), state.current.id, state.assets);
         const s = await uploadAsset(i, target.path, draftId);
         if (
           target.insert ||

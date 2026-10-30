@@ -76,7 +76,7 @@ export function preparePublishingPresentation(html, {document = globalThis.docum
   for (const anchor of [...root.querySelectorAll('a[href]')]) {
     if(anchor.closest('svg,math')) { anchor.removeAttribute('href');continue; }
     const href=anchor.getAttribute('href').trim();
-    if (!href || href.startsWith('#') || anchor.closest('pre,code')) continue;
+    if (!href || href.startsWith('#') || /^(?:\.\/)?assets\//.test(href) || anchor.closest('pre,code')) continue;
     let label=anchor.textContent.trim();
     // Imported documents sometimes contain [label]URL without Markdown's ().
     // Repair the presentation only; never rewrite the author's source document.

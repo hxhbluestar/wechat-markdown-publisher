@@ -140,7 +140,7 @@ function New-TypographyChanges {
     if ($Release.schema_version -ne 1 -or -not ($Release.release -match '^\d{4}\.\d{2}\.\d{2}-[a-z0-9.-]+$') -or -not $Release.files -or $Release.files.Count -gt 128) {
         throw 'Invalid deployment release manifest'
     }
-    $Backend = @('server.py','rocm_import.py','editor_service.py','editor_security.py','draft_history.py','article_import.py','article_package.py','asset_workbench.py','asset_service.py','server_preflight.py','sync_jobs.py','sync_workflow.py','sync_verification.py')
+    $Backend = @('server.py','rocm_import.py','editor_service.py','editor_security.py','draft_history.py','article_import.py','folder_import.py','article_package.py','asset_workbench.py','asset_service.py','server_preflight.py','sync_jobs.py','sync_workflow.py','sync_verification.py')
     $Seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $Files = @()
     foreach ($Relative in $Release.files) {

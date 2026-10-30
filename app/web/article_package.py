@@ -16,7 +16,7 @@ import zipfile
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, unquote, urlsplit
 
-RENDER_VERSION = '2026.10.23-gutter.1'
+RENDER_VERSION = '2026.10.30-folder.1'
 MAX_METADATA_BYTES = 256 * 1024
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 EXPORT_METADATA = frozenset(('title','author','digest','cover','source_url','need_open_comment','only_fans_can_comment','show_cover_pic','theme','palette','font_family','font_size','code_font_size','code_theme','code_wrap','table_mode','caption_font_size','table_font_size','published_at','imported_at','import_fingerprint','import_kind','article_type','experiment_conditions','source_author','source_date','block_overrides'))
@@ -69,6 +69,10 @@ def package_asset_path(value):
         if (candidate.startswith('/') or any(ord(c) < 32 or c in '\\:<>\"|?*' for c in candidate)
                 or any(not part or part in ('.', '..') or part.endswith((' ', '.')) for part in parts)):
             raise PackageValidationError('Unsafe package asset path')
+    if value.startswith('assets/'):
+        from folder_import import safe_attachment_path, ArticleImportError
+        try:return safe_attachment_path(value)
+        except ArticleImportError as exc:raise PackageValidationError(str(exc)) from exc
     if unicodedata.normalize('NFC', value) != value or not re.search(r'\.(?:png|jpe?g|gif|webp)\Z', value, re.I):
         raise PackageValidationError('Unsupported package asset path')
     if not (value.startswith('images/') or re.fullmatch(r'cover\.(?:png|jpe?g|gif|webp)', value, re.I)):
@@ -133,6 +137,7 @@ def safe_package_metadata(metadata):
             result[key] = _url(value)
         elif key == 'cover':
             result[key] = package_asset_path(value) if value else _string(value, 0)
+            if value and not re.search(r'\.(?:png|jpe?g|gif|webp)\Z',value,re.I):raise PackageValidationError('Package cover must be an image')
         elif key in ('show_cover_pic','need_open_comment','only_fans_can_comment'):
             if type(value) is not bool:
                 raise PackageValidationError('Invalid package Boolean metadata')
@@ -323,12 +328,22 @@ def article_package(store, draft_id):
         for asset in store.list_assets(draft_id):
             path = package_asset_path(asset['path'])
             data = store.asset_path(draft_id, path).read_bytes()
-            verified = _image_asset(data)
+            if path.startswith('assets/'):
+                from folder_import import validate_attachment
+                verified=validate_attachment(path,data)
+            else:verified = _image_asset(data)
             entries[path] = data
             by_path[path] = verified
-        if len(entries) + 3 > MAX_ARCHIVE_FILES:
+        has_attachments=any(path.startswith('assets/') for path in entries)
+        if has_attachments:
+            from folder_import import MAX_FOLDER_FILES,MAX_FOLDER_BYTES
+            archive_limit,expanded_limit,input_limit=MAX_FOLDER_FILES+2,MAX_FOLDER_BYTES,MAX_FOLDER_BYTES
+        else:archive_limit,expanded_limit,input_limit=MAX_ARCHIVE_FILES,MAX_EXPANDED_BYTES,MAX_INPUT_BYTES
+        if len(entries) + 3 > archive_limit:
             raise PackageValidationError('Package exceeds the archive entry limit')
         cover = metadata.get('cover')
+        if cover and cover.startswith('assets/') and cover not in by_path and 'images/'+cover in by_path:
+            cover=metadata['cover']='images/'+cover
         if cover and cover not in by_path:
             raise PackageValidationError('Package cover image is missing')
         changes = {}
@@ -339,6 +354,9 @@ def article_package(store, draft_id):
                 if path not in by_path:
                     raise PackageValidationError('Package image reference has no local material')
                 changes[start, end] = path.replace(' ', '%20')
+            elif target.startswith(('assets/','./assets/')):
+                path=store.asset_path(draft_id,target).relative_to(store.root/draft_id).as_posix()
+                if path.startswith('images/assets/'):changes[start,end]=path.replace(' ','%20')
         for (start, end), path in sorted(changes.items(), reverse=True):
             content = content[:start] + path + content[end:]
         article = content.encode('utf-8')
@@ -373,7 +391,7 @@ def article_package(store, draft_id):
         entries['article.md'] = article
         entries['metadata.json'] = json_bytes(metadata, MAX_METADATA_BYTES)
         entries['manifest.json'] = json_bytes(manifest, MAX_MANIFEST_BYTES)
-        if sum(len(data) for data in entries.values()) > MAX_EXPANDED_BYTES:
+        if sum(len(data) for data in entries.values()) > expanded_limit:
             raise PackageValidationError('Package exceeds the expanded archive limit')
         out = io.BytesIO()
         # Stored members always meet the importer's compression-ratio guard.
@@ -381,6 +399,6 @@ def article_package(store, draft_id):
             for path, data in entries.items():
                 archive.writestr(path, data)
         value = out.getvalue()
-        if len(value) > MAX_INPUT_BYTES:
+        if len(value) > input_limit:
             raise PackageValidationError('Package exceeds the current import upload limit; split the draft before exporting')
         return value

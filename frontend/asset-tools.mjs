@@ -1,6 +1,18 @@
 import { scanCodeRegions } from "./technical-writing.mjs";
 import { canonicalAssetPath } from "./asset-paths.mjs";
 
+const isRasterAsset = (asset) =>
+  (!asset.kind || asset.kind === "image") && /\.(?:png|jpe?g|gif|webp)$/i.test(asset.path);
+
+function attachmentPath(value) {
+  const path = canonicalAssetPath(value);
+  if (
+    !path.startsWith("assets/") || /[:<>"|?*\0\r\n\\]/.test(path) ||
+    path.split("/").some(part => !part || part === ".." || /[ .]$/.test(part))
+  ) throw new TypeError("Invalid local attachment path");
+  return path;
+}
+
 function sourceText(content) {
   if (typeof content !== "string" || content.length > 200000)
     throw new TypeError("Invalid asset content");
@@ -195,7 +207,7 @@ function localPath(value) {
     throw new TypeError("Invalid local asset path");
   const path = canonicalAssetPath(value);
   if (
-    !/^(?:images\/|cover\.)/.test(path) ||
+    !/^(?:(?:images|assets)\/|cover\.)/.test(path) ||
     !/\.(?:png|jpe?g|gif|webp)$/i.test(path) ||
     /[:<>"|?*\0\r\n\\]/.test(path) ||
     path
@@ -236,19 +248,19 @@ export function rewriteImageSources(
   content,
   oldUrl,
   newPath,
-  { draftId = "" } = {},
+  { draftId = "", availableAssets } = {},
 ) {
   sourceText(content);
   if (typeof oldUrl !== "string" || !oldUrl)
     throw new TypeError("Invalid old image source");
   const path = pathURL(localPath(newPath));
   const remote = /^(?:https?:|data:|blob:|\/\/)/i.test(oldUrl);
-  const wanted = remote ? oldUrl : canonicalAssetPath(oldUrl, draftId);
+  const wanted = remote ? oldUrl : canonicalAssetPath(oldUrl, draftId, availableAssets);
   const changes = [];
   for (const image of imageSpans(content)) {
     const source = remote
       ? image.source
-      : canonicalAssetPath(image.source, draftId);
+      : canonicalAssetPath(image.source, draftId, availableAssets);
     if (source !== wanted) continue;
     if (image.reference)
       changes.push({
@@ -414,6 +426,30 @@ export function connectAssetTools(document, adapter) {
       /* An unsafe path is still shown as text; it is never an image URL. */
     }
   }
+  function attachmentPreview(asset, id, target) {
+    try {
+      const path = attachmentPath(asset.path),
+        url = a.assetUrl?.(path, id),
+        expected = `/api/editor/drafts/${encodeURIComponent(id)}/assets/`;
+      if (typeof url !== "string" || !url.startsWith(expected)) return;
+      if (asset.kind === "video" && /\.(?:mp4|m4v|mov|webm)$/i.test(path)) {
+        const video = el("video");
+        video.setAttribute("src", url);
+        video.setAttribute("controls", "");
+        video.setAttribute("preload", "none");
+        video.setAttribute("playsinline", "");
+        video.setAttribute("aria-label", `视频附件预览：${path}`);
+        video.style.cssText = "display:block;width:100%;max-width:100%";
+        target.append(video);
+      }
+      const download = el("a", asset.kind === "video" ? "下载视频" : "下载附件");
+      download.setAttribute("href", url);
+      download.setAttribute("download", path.split("/").at(-1));
+      target.append(download);
+    } catch {
+      // Invalid names remain visible as text; never create executable URLs.
+    }
+  }
   function captions() {
     const items = listImageCaptions(sourceText(a.getContent?.() || ""));
     $("#assetCaptionSources").replaceChildren(
@@ -432,6 +468,15 @@ export function connectAssetTools(document, adapter) {
     if (!inventory.length) list.append(el("p", "当前稿件没有本地素材。"));
     for (const asset of inventory) {
       const card = el("article", undefined, "asset-tools-card");
+      if (!isRasterAsset(asset)) {
+        card.append(
+          el("h4", asset.path),
+          el("p", `${asset.kind === "video" ? "视频附件" : "附件"} · ${asset.size ?? "—"} bytes`),
+        );
+        attachmentPreview(asset, id, card);
+        list.append(card);
+        continue;
+      }
       card.append(
         el("h4", asset.path),
         el(
@@ -638,6 +683,7 @@ export function connectAssetTools(document, adapter) {
       stage.next ??
       rewriteImageSources(stage.expected, stage.oldUrl, stage.asset.path, {
         draftId: stage.id,
+        availableAssets: inventory,
       });
     if (next === stage.expected) {
       note("正文中没有需要替换的匹配图片引用，原文已保留。");
@@ -746,7 +792,7 @@ export function connectAssetTools(document, adapter) {
       const asset = inventory.find(
         (item) => item.path === trigger.dataset.assetSelect,
       );
-      if (!asset) return;
+      if (!asset || !isRasterAsset(asset)) return;
       localPath(asset.path);
       selected = asset;
       staged = null;

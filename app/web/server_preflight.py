@@ -23,7 +23,7 @@ from itertools import chain
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from article_import import ArticleImportError, _image_references, _protected_markdown
+from article_import import ArticleImportError, _image_references, _protected_markdown, _destination
 from article_package import RENDER_VERSION
 from asset_workbench import AssetWorkbenchError, MAX_IMAGE_BYTES, inspect_image
 
@@ -120,9 +120,54 @@ def _canonical_source(source, draft_id):
     relative = '/'.join(parts)
     if not re.search(r'\.(?:png|jpe?g|gif|webp)$', relative, re.I):
         return None, 'image-unsupported'
-    if not relative.startswith('images/') and not re.fullmatch(r'cover\.(?:png|jpe?g|gif|webp)', relative, re.I):
+    if not relative.startswith(('images/','assets/')) and not re.fullmatch(r'cover\.(?:png|jpe?g|gif|webp)', relative, re.I):
         relative = 'images/' + relative
     return relative, None
+
+
+def _local_attachment_links(masked, draft_id, *, all_local=False):
+    """Recognize live local links before the publish renderer removes anchors."""
+    definitions={}
+    for match in re.finditer(r'^ {0,3}\[([^\]\n]+)\]:[ \t]*(.+)$',masked,re.M):
+        start,end=_destination(masked,match.start(2),match.end(2))
+        definitions[re.sub(r'\s+',' ',match[1]).casefold()]=(start,end,masked[start:end])
+    targets=[]
+    for match in re.finditer(r'(?<![\\!])\[((?:\\.|[^\]\\\n]){0,4096})\]',masked):
+        pos=match.end()
+        if masked[pos:pos+1]==':':continue
+        if masked[pos:pos+1]=='(':
+            cursor,depth,angle=pos+1,1,False
+            while cursor<len(masked) and cursor-pos<8192 and depth:
+                char=masked[cursor]
+                if char=='\\':cursor+=2;continue
+                if char=='<':angle=True
+                elif char=='>':angle=False
+                elif not angle and char=='(':depth+=1
+                elif not angle and char==')':depth-=1
+                cursor+=1
+            if depth:continue
+            start,end=_destination(masked,pos+1,cursor-1)
+            targets.append((start,end,masked[start:end]))
+        else:
+            ref=re.match(r'\[([^\]\n]*)\]',masked[pos:])
+            key=(ref[1] or match[1]) if ref else match[1]
+            target=definitions.get(re.sub(r'\s+',' ',key).casefold())
+            if target:targets.append(target)
+    for tag in re.finditer(r'<a\b[^>]{0,8192}>',masked,re.I):
+        href=re.search(r'''\bhref\s*=\s*(?:(["'])(.*?)\1|([^\s>]+))''',tag[0],re.I|re.S)
+        if href:
+            group=2 if href[2] is not None else 3
+            targets.append((tag.start()+href.start(group),tag.start()+href.end(group),href[group]))
+    for start,end,target in targets:
+        try:
+            parsed=urlsplit(html.unescape(target))
+            if parsed.scheme or parsed.netloc:continue
+            path=unquote(parsed.path)
+        except ValueError:continue
+        prefix=f'/api/editor/drafts/{draft_id}/assets/'
+        if path.startswith(prefix):path=path[len(prefix):]
+        if path.startswith('./'):path=path[2:]
+        if path and (all_local or path.startswith('assets/')):yield start,end,path
 
 
 def _styles(value):
@@ -217,6 +262,9 @@ def preflight_article(store, draft, source_html, render_version, account_id):
             issue(error, 'blocker', field, '图片引用不可发布；请使用已核对的本地 PNG、JPEG、GIF 或 WebP 素材。', start, end)
             asset_state[str(source)] = {'error': error}
             return
+        if relative.startswith('assets/'):
+            folder=Path(store.root)/draft_id
+            if not (folder/relative).is_file() and (folder/'images'/relative).is_file():relative='images/'+relative
         if relative not in asset_state:
             try:
                 # DraftStore validates canonical containment before this read.
@@ -278,9 +326,18 @@ def preflight_article(store, draft, source_html, render_version, account_id):
                         lambda match: re.sub(r'[^\r\n]', ' ', match[0]), masked, flags=re.I)
         if unclosed:
             issue('code-fence-unclosed', 'info', 'content', '代码围栏未闭合，建议核对原文。')
+        for start,end,target in _local_attachment_links(masked,draft_id):
+            is_video=bool(re.search(r'\.(?:mp4|m4v|mov|webm)\Z',target,re.I))
+            issue('media-wechat-insert' if is_video else 'attachment-local-link','blocker','content',
+                  '本地视频需要在公众号后台上传并插入；请先处理正文中的视频引用。' if is_video else
+                  '公众号读者无法访问本地附件链接；请先移除该链接或改成读者可获取附件的说明。',start,end)
+        for match in re.finditer(r'<(?:video|audio|source)\b',masked,re.I):
+            issue('media-wechat-insert','blocker','content','视频或音频已保存在附件中，公众号正文媒体需要在公众号后台上传并插入。',match.start(),match.end())
         try:
             for start, end, source in _image_references(masked):
-                check_asset(html.unescape(content[start:end]), 'content', start, end)
+                if re.search(r'\.(?:mp4|m4v|mov|webm)(?:[?#].*)?\Z',source,re.I):
+                    issue('media-wechat-insert','blocker','content','视频已随文章保存；公众号正文视频需要在公众号后台上传并插入。',start,end)
+                else:check_asset(html.unescape(content[start:end]), 'content', start, end)
         except ArticleImportError:
             issue('image-syntax', 'blocker', 'content', '图片引用不完整或数量超出验证限制，请修复后重新核对。')
     for field, value in [('content', content), ('title', str(metadata.get('title', ''))), ('digest', str(metadata.get('digest', ''))),
@@ -333,7 +390,9 @@ def preflight_article(store, draft, source_html, render_version, account_id):
                     # local path would otherwise survive as a broken remote img.
                     unsafe = True
                 if unsafe:
-                    issue('html-unsafe', 'blocker', 'html', '排版结果包含危险标签、属性或外部样式依赖，请先移除。', start, end)
+                    if node.name.lower() in ('video','audio','source'):
+                        issue('media-wechat-insert', 'blocker', 'html', '本地视频或音频不能直接同步到公众号正文，请先在公众号后台上传并插入媒体，再处理正文中的媒体占位。', start, end)
+                    else:issue('html-unsafe', 'blocker', 'html', '排版结果包含危险标签、属性或外部样式依赖，请先移除。', start, end)
                 if node.name == 'img' and not node.find_parent(['pre', 'code']):
                     if not node.get('src'):
                         issue('image-missing', 'blocker', 'html', '排版图片缺少 src 地址。', start, end)

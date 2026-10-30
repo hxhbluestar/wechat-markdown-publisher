@@ -361,6 +361,8 @@ class _SnapshotStore:
     def asset_path(self, draft_id, relative, *, must_exist=True):
         folder = self._draft_dir(draft_id)
         clean = safe_asset_path(relative)
+        if clean.startswith('assets/') and clean not in self.entries and 'images/'+clean in self.entries:
+            clean='images/'+clean
         entry = self.entries.get(clean)
         if entry is None:
             raise EditorError('任务快照中没有所请求的素材', 404)

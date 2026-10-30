@@ -39,7 +39,9 @@ def inventory(store,draft_id):
                 if urlsplit(src).scheme:continue
                 prefix=f'/api/editor/drafts/{draft_id}/assets/'
                 target=src[len(prefix):] if src.startswith(prefix) else src
-                try:key=safe_asset_path(unquote(target))
+                try:
+                    key=safe_asset_path(unquote(target))
+                    key=store.asset_path(draft_id,key).relative_to(store.root/draft_id).as_posix()
                 except EditorError:continue
                 counts[key]=counts.get(key,0)+1
                 context=content[max(0,start-500):start]
@@ -49,6 +51,12 @@ def inventory(store,draft_id):
         output=[];seen={}
         for asset in store.list_assets(draft_id):
             item={**asset,'reference_count':counts.get(asset['path'],0),'captions':captions.get(asset['path'],[])}
+            if asset.get('kind') in ('video','attachment'):
+                path=store.asset_path(draft_id,asset['path'])
+                with path.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
+                item.update(sha256=digest,status='ready')
+                output.append(item)
+                continue
             try:
                 details=inspect_image(store.asset_path(draft_id,asset['path']).read_bytes())
                 item.update({k:v for k,v in details.items() if k!='frame_durations_ms'})

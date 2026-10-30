@@ -6,6 +6,15 @@ const metadata = { title: '合成技术文章', source_url: 'https://example.org
 const run = (content, extra = {}) => analyzeArticle({ content, metadata, assets: [], ...extra });
 const codes = report => report.issues.map(issue => issue.code);
 
+test('folder images and legacy asset locations are available while local video and downloads require backend insertion',()=>{
+ const assets=[{path:'assets/中文 图片.png',size:100,content_type:'image/png'},{path:'images/assets/old.png',size:100,content_type:'image/png'},{path:'assets/demo.mp4',kind:'video',size:100},{path:'assets/说明.md',kind:'attachment',size:10}];
+ const report=run('![图](assets/中文%20图片.png)\n![旧](assets/old.png)',{assets});
+ assert.equal(report.counts.blocker,0);
+ const video=run('[演示](assets/demo.mp4)\n[说明](assets/说明.md)\n```md\n[示例](assets/example.mp4)\n```',{assets});
+ assert.equal(video.issues.filter(i=>i.code==='local-attachment-publish').length,2);
+ assert.ok(video.issues.filter(i=>i.code==='local-attachment-publish').every(i=>i.severity==='blocker'));
+});
+
 test('15 image references locate the one missing asset precisely', () => {
   const content = Array.from({ length: 15 }, (_, i) => `![图 ${i + 1}](images/figure-${i + 1}.png)`).join('\n');
   const assets = Array.from({ length: 15 }, (_, i) => ({ path: `images/figure-${i + 1}.png`, size: 128, content_type: 'image/png' })).filter(asset => asset.path !== 'images/figure-8.png');

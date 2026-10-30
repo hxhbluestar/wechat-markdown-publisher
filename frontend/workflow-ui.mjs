@@ -28,6 +28,8 @@ export function connectWorkflowUI(doc, a) {
     recheck = $("#workflowRecheck");
   let pane = "recovery",
     pendingUpload = null,
+    importSelection = 0,
+    importCommitBusy = false,
     conflict = null,
     conflictBusy = false,
     destroyed = false,
@@ -282,9 +284,11 @@ export function connectWorkflowUI(doc, a) {
       );
     }
   }
-  function renderImport() {
+  function renderImport(ticket) {
+    pendingUpload = null;
+    importSelection++;
     note(
-      "先转换并核对数量，再确认生成新稿。支持 Markdown、含一篇 Markdown 与配图的 ZIP、DOCX；复杂合并单元格与公式会列入报告。网络图片需另行下载。",
+      "先转换并核对数量，再确认生成新稿。支持 Markdown、文章 ZIP 包、DOCX；ZIP 可保留原图、视频及附件，最大 256 MiB，其他文件最大 12MiB。复杂合并单元格与公式会列入报告。网络图片需另行下载。",
     );
     const file = el("input");
     file.type = "file";
@@ -292,13 +296,30 @@ export function connectWorkflowUI(doc, a) {
     file.id = "workbenchFile";
     body.append(file);
     file.addEventListener("change", async () => {
-      if (!file.files?.[0]) return;
+      if (!file.files?.[0] || importCommitBusy || !active(ticket, "import"))
+        return;
+      const selection = ++importSelection,
+        f = file.files[0];
+      pendingUpload = null;
+      $("#importResult")?.replaceChildren();
       try {
-        const f = file.files[0];
-        pendingUpload = { filename: f.name, data: await base64File(f) };
-        await previewImport();
+        let upload;
+        if (/\.zip$/i.test(f.name)) {
+          if (
+            !Number.isSafeInteger(f.size) ||
+            f.size < 1 ||
+            f.size > 256 * 1024 * 1024
+          )
+            throw new Error("ZIP 文章包不能为空且不能超过 256 MiB");
+          // File is an immutable Blob: fetch streams it without an intermediate
+          // ArrayBuffer, base64 string or a second JSON-sized copy.
+          upload = { filename: f.name, blob: f };
+        } else upload = { filename: f.name, data: await base64File(f) };
+        if (!active(ticket, "import") || importSelection !== selection) return;
+        pendingUpload = upload;
+        await previewImport(upload, ticket, selection);
       } catch (e) {
-        fail(e);
+        if (active(ticket, "import") && importSelection === selection) fail(e);
       }
     });
     const source = el("input");
@@ -314,25 +335,53 @@ export function connectWorkflowUI(doc, a) {
       source,
       html,
       button("预检 HTML 转换", async () => {
-        pendingUpload = {
-          filename: "pasted.html",
-          kind: "html",
-          source_url: source.value,
-          data: bytesBase64(new TextEncoder().encode(html.value)),
-        };
-        await previewImport();
+        if (importCommitBusy || !active(ticket, "import")) return;
+        const selection = ++importSelection,
+          upload = {
+            filename: "pasted.html",
+            kind: "html",
+            source_url: source.value,
+            data: bytesBase64(new TextEncoder().encode(html.value)),
+          };
+        pendingUpload = upload;
+        await previewImport(upload, ticket, selection);
       }),
     );
     const result = el("div");
     result.id = "importResult";
     body.append(result);
   }
-  async function previewImport() {
-    message.textContent = "正在本机转换并核对素材…";
-    const r = await a.request("/api/editor/import", {
+  function sendImport(upload, flags = {}) {
+    if (upload.blob) {
+      const query = new URLSearchParams({ filename: upload.filename });
+      if (flags.preview_only) query.set("preview_only", "1");
+      if (flags.allow_duplicate) query.set("allow_duplicate", "1");
+      return a.request("/api/editor/import-package?" + query, {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body: upload.blob,
+      });
+    }
+    return a.request("/api/editor/import", {
       method: "POST",
-      body: JSON.stringify({ ...pendingUpload, preview_only: true }),
+      body: JSON.stringify({ ...upload, ...flags }),
     });
+  }
+  async function previewImport(upload, ticket, selection) {
+    const matches = () =>
+      active(ticket, "import") &&
+      importSelection === selection &&
+      pendingUpload === upload;
+    if (!matches()) return;
+    message.textContent = "正在本机转换并核对素材…";
+    let r;
+    try {
+      r = await sendImport(upload, { preview_only: true });
+    } catch (error) {
+      if (!matches()) return;
+      throw error;
+    }
+    if (!matches()) return;
     const target = $("#importResult");
     target.replaceChildren(el("h3", r.title || "转换报告"));
     const counts = r.report;
@@ -364,23 +413,40 @@ export function connectWorkflowUI(doc, a) {
       );
       target.append(label);
     }
-    target.append(
-      button("确认导入为新稿", async () => {
-        if (duplicateCheck && !duplicateCheck.checked)
-          throw new Error("请先确认重复导入为新版本副本");
+    const confirm = button("确认导入为新稿", async () => {
+      if (!matches() || importCommitBusy) return;
+      if (duplicateCheck && !duplicateCheck.checked)
+        throw new Error("请先确认重复导入为新版本副本");
+      const draftId = a.getDraft()?.id || null,
+        allowDuplicate = !!duplicateCheck?.checked,
+        controls = [...body.querySelectorAll("input,textarea,button")],
+        disabled = controls.map((node) => node.disabled);
+      importCommitBusy = true;
+      for (const node of controls) node.disabled = true;
+      try {
         await a.beforeImport();
-        const result = await a.request("/api/editor/import", {
-          method: "POST",
-          body: JSON.stringify({
-            ...pendingUpload,
-            allow_duplicate: !!duplicateCheck?.checked,
-          }),
+        if (!matches()) return;
+        if ((a.getDraft()?.id || null) !== draftId)
+          throw new Error("稿件已切换，请重新检查后导入");
+        const result = await sendImport(upload, {
+          allow_duplicate: allowDuplicate,
         });
+        await a.refreshDrafts?.();
+        if (!matches() || (a.getDraft()?.id || null) !== draftId) {
+          a.toast?.("新稿已导入，请从稿件列表打开；当前编辑区已保留");
+          return;
+        }
         await a.onImported(result.draft);
         close();
         a.toast?.("导入完成，质量报告与原稿已保存在版本工作台");
-      }),
-    );
+      } finally {
+        importCommitBusy = false;
+        controls.forEach((node, index) => {
+          node.disabled = disabled[index];
+        });
+      }
+    });
+    target.append(confirm);
     message.textContent = "转换完成，请核对后确认导入。";
   }
   function snapshot() {

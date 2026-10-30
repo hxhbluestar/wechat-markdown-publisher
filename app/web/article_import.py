@@ -64,12 +64,16 @@ def _text(data):
     return result
 
 
-def _archive(data):
+def _archive(data, *, portable=False):
     """Read validated ZIP members into memory, without extracting to disk."""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as package:
             members = package.infolist()
-            if len(members) > MAX_ARCHIVE_FILES:
+            if portable:
+                from folder_import import MAX_FOLDER_FILES,MAX_FOLDER_BYTES,MAX_ATTACHMENT_BYTES
+                file_limit,member_limit,total_limit=MAX_FOLDER_FILES+2,MAX_ATTACHMENT_BYTES,MAX_FOLDER_BYTES
+            else:file_limit,member_limit,total_limit=MAX_ARCHIVE_FILES,MAX_MEMBER_BYTES,MAX_EXPANDED_BYTES
+            if len(members) > file_limit:
                 raise ArticleImportError('Archive exceeds 256 entries')
             total, seen = 0, set()
             for member in members:
@@ -89,7 +93,7 @@ def _archive(data):
                 if member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
                     raise ArticleImportError('Unsupported archive compression method')
                 total += member.file_size
-                if (member.file_size > MAX_MEMBER_BYTES or total > MAX_EXPANDED_BYTES
+                if (member.file_size > member_limit or total > total_limit
                         or member.file_size > max(1, member.compress_size) * MAX_COMPRESSION_RATIO):
                     raise ArticleImportError('Archive exceeds expanded size or compression ratio limits')
             result = {}
@@ -97,7 +101,7 @@ def _archive(data):
                 if member.is_dir():
                     continue
                 with package.open(member) as stream:
-                    value = stream.read(min(MAX_MEMBER_BYTES, member.file_size) + 1)
+                    value = stream.read(min(member_limit, member.file_size) + 1)
                     if len(value) != member.file_size:
                         raise ArticleImportError('Archive member size mismatch')
                 result[unicodedata.normalize('NFC', member.filename)] = value
@@ -272,7 +276,7 @@ def _image_asset(data):
     return {'name': 'images/' + digest + extension, 'bytes': data, 'mime': mime, 'sha256': digest}
 
 
-def _materials(content, files, article_path, base_url, report):
+def _materials(content, files, article_path, base_url, report, preserve_paths=()):
     references = _image_references(content)
     if len(references) > MAX_IMAGES:
         raise ArticleImportError('Article exceeds 128 image references', report=report)
@@ -300,9 +304,13 @@ def _materials(content, files, article_path, base_url, report):
         if resolved not in files:
             missing.append(target)
             continue
-        asset = _image_asset(files[resolved])
+        if resolved in preserve_paths and resolved.startswith('assets/'):
+            from folder_import import validate_attachment
+            asset=validate_attachment(resolved,files[resolved])
+            if asset['kind'] not in ('image','video'):raise ArticleImportError('Embedded material must be an image or video',report=report)
+        else:asset = _image_asset(files[resolved])
         assets[asset['name']] = asset
-        replacements[(start, end)] = asset['name']
+        if resolved not in preserve_paths:replacements[(start, end)] = asset['name']
     report['remote_images'] = remote
     report['missing_images'] = list(dict.fromkeys(missing))
     if remote:
@@ -631,7 +639,8 @@ def _package_bundle(files, article_path, report):
             raise PackageValidationError('Invalid publisher package renderer version')
         metadata = safe_package_metadata(read_package_json(files['metadata.json'], MAX_METADATA_BYTES))
         entries = manifest.get('assets')
-        if not isinstance(entries, list) or len(entries) > MAX_ARCHIVE_FILES - 3:
+        from folder_import import MAX_FOLDER_FILES
+        if not isinstance(entries, list) or len(entries) > MAX_FOLDER_FILES - 1:
             raise PackageValidationError('Invalid publisher package asset manifest')
         by_path = {}
         for entry in entries:
@@ -641,9 +650,12 @@ def _package_bundle(files, article_path, report):
             if path in by_path or path not in files:
                 raise PackageValidationError('Package asset is missing or listed more than once')
             size, expected = entry.get('size'), entry.get('sha256')
-            if type(size) is not int or size < 1 or size != len(files[path]) or not isinstance(expected, str) or not HASH.fullmatch(expected):
+            if type(size) is not int or size < 0 or (size==0 and not path.startswith('assets/')) or size != len(files[path]) or not isinstance(expected, str) or not HASH.fullmatch(expected):
                 raise PackageValidationError('Package image size or fingerprint is invalid')
-            verified = _image_asset(files[path])
+            if path.startswith('assets/'):
+                from folder_import import validate_attachment
+                verified=validate_attachment(path,files[path])
+            else:verified = _image_asset(files[path])
             if verified['sha256'] != expected:
                 raise PackageValidationError('Package image fingerprint does not match material')
             by_path[path] = verified
@@ -670,7 +682,7 @@ def _package_bundle(files, article_path, report):
         report['package'] = {'format': 1, 'render_version': manifest.get('render_version', ''), 'restored_assets': len(assets), 'restored_relations': len(remapped)}
         report['conversions'].append('Publisher package metadata, unused originals and cover restored; image relationships verified and remapped by SHA-256.')
         return {'metadata': metadata, 'assets': assets, 'asset_relations': remapped}
-    except PackageValidationError as exc:
+    except (PackageValidationError,ArticleImportError) as exc:
         raise ArticleImportError(str(exc), report=report) from exc
 
 
@@ -684,8 +696,9 @@ def prepare_import(filename, data, kind='auto', base_url='', metadata=None):
     """
     if not isinstance(filename, str) or not filename.strip() or len(filename) > 512 or re.search(r'[\x00-\x1f]', filename):
         raise ArticleImportError('Invalid source filename')
-    if not isinstance(data, bytes) or not data or len(data) > MAX_INPUT_BYTES:
-        raise ArticleImportError('Source must contain 1 byte to 12 MiB')
+    from folder_import import MAX_FOLDER_BYTES
+    if not isinstance(data, bytes) or not data or len(data) > MAX_FOLDER_BYTES:
+        raise ArticleImportError('Source exceeds local import limits')
     if metadata is not None and not isinstance(metadata, dict):
         raise ArticleImportError('Metadata must be an object')
     if not isinstance(base_url, str) or (base_url and _url_kind(base_url) != 'remote'):
@@ -696,6 +709,13 @@ def prepare_import(filename, data, kind='auto', base_url='', metadata=None):
         kind = 'md'
     if kind not in ('md', 'zip', 'docx', 'html'):
         raise ArticleImportError('Choose Markdown, ZIP, DOCX or explicit HTML import')
+    portable=False
+    if kind=='zip':
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as package:
+                portable={'article.md','metadata.json','manifest.json'}.issubset(package.namelist())
+        except (zipfile.BadZipFile,OSError,ValueError):pass
+    if len(data)>MAX_INPUT_BYTES and not portable:raise ArticleImportError('Source must contain 1 byte to 12 MiB')
     fingerprint = hashlib.sha256(data).hexdigest()
     imported_at = datetime.now(timezone.utc).isoformat(timespec='seconds')
     report = {'status': 'ready', 'before': {}, 'after': {}, 'warnings': [], 'conversions': [],
@@ -703,14 +723,21 @@ def prepare_import(filename, data, kind='auto', base_url='', metadata=None):
               'provenance': {'filename': filename, 'kind': kind, 'sha256': fingerprint, 'imported_at': imported_at}}
     files, article_path, extracted, bundle = {}, '', {}, None
     if kind == 'zip':
-        files = _archive(data)
-        candidates = [name for name in files if PurePosixPath(name).suffix.lower() in ('.md', '.markdown')]
+        files = _archive(data,portable=portable)
+        candidates = ['article.md'] if portable else [name for name in files if PurePosixPath(name).suffix.lower() in ('.md', '.markdown')]
         if len(candidates) != 1:
             raise ArticleImportError('ZIP must contain exactly one Markdown article', report=report)
         article_path = candidates[0]
         content = _text(files[article_path])
         extracted = _front_metadata(content)
         bundle = _package_bundle(files, article_path, report)
+        if portable and bundle is None:
+            # Unrelated ZIPs may happen to use these three filenames. They
+            # retain the ordinary ZIP limits and single-Markdown contract.
+            if len(data)>MAX_INPUT_BYTES:raise ArticleImportError('Source must contain 1 byte to 12 MiB',report=report)
+            files=_archive(data)
+            if len([name for name in files if PurePosixPath(name).suffix.lower() in ('.md','.markdown')])!=1:
+                raise ArticleImportError('ZIP must contain exactly one Markdown article',report=report)
         if bundle:
             extracted.update(bundle['metadata'])
     elif kind == 'docx':
@@ -723,7 +750,7 @@ def prepare_import(filename, data, kind='auto', base_url='', metadata=None):
         extracted = _front_metadata(content)
     if not report['before']:
         report['before'] = _counts(content)
-    content, assets = _materials(content, files, article_path, base_url if kind == 'html' else '', report)
+    content, assets = _materials(content, files, article_path, base_url if kind == 'html' else '', report,bundle['assets'] if bundle else ())
     if bundle:
         all_assets = {**bundle['assets'], **{asset['name']: asset for asset in assets}}
         assets = [all_assets[name] for name in sorted(all_assets)]

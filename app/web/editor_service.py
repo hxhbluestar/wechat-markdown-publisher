@@ -119,6 +119,10 @@ def safe_asset_path(value: str) -> str:
     if any(part == ".." for part in parts):
         raise EditorError("素材路径不能越过稿件目录")
     clean = "/".join(parts)
+    if clean.startswith('assets/'):
+        from folder_import import safe_attachment_path, ArticleImportError
+        try:return safe_attachment_path(clean)
+        except ArticleImportError as exc:raise EditorError(str(exc)) from exc
     suffix = Path(clean).suffix.lower()
     if suffix not in ALLOWED_IMAGE_EXTS:
         raise EditorError("仅支持 JPG、PNG、GIF 和 WebP 图片")
@@ -185,6 +189,8 @@ def normalize_metadata(value: Any, fallback_title: str = "") -> dict[str, Any]:
     metadata["wechat_account_id"] = account_id
     cover = str(source.get("cover") or "").strip()
     metadata["cover"] = safe_asset_path(cover) if cover else ""
+    if cover and Path(metadata['cover']).suffix.lower() not in ALLOWED_IMAGE_EXTS:
+        raise EditorError('封面必须是 JPG、PNG、GIF 或 WebP 图片')
     for field in ('published_at', 'imported_at', 'import_fingerprint', 'import_kind', 'source_author', 'source_date'):
         if field in source:
             metadata[field] = str(source[field] or '')[:512]
@@ -435,7 +441,11 @@ class DraftStore:
                 for asset in assets:
                     relative = safe_asset_path(asset['name'])
                     data = asset['bytes']
-                    if not isinstance(data, bytes) or not _looks_like_image(data) or len(data) > MAX_IMAGE_BYTES:
+                    if relative.startswith('assets/'):
+                        from folder_import import validate_attachment, ArticleImportError
+                        try:validate_attachment(relative,data)
+                        except ArticleImportError as exc:raise EditorError(str(exc)) from exc
+                    elif not isinstance(data, bytes) or not _looks_like_image(data) or len(data) > MAX_IMAGE_BYTES:
                         raise EditorError('导入图片无效或超过 10MB')
                     atomic_write(staging / relative, data)
                     material_paths.add(relative)
@@ -516,6 +526,9 @@ class DraftStore:
         clean = safe_asset_path(relative)
         folder, _, _, _ = self._paths(draft_id)
         path = (folder / clean).resolve()
+        if must_exist and clean.startswith('assets/') and not path.is_file():
+            legacy=(folder/'images'/clean).resolve()
+            if legacy.is_file():path=legacy
         if folder not in path.parents:
             raise EditorError("素材路径无效", 404)
         if must_exist and not path.is_file():
@@ -528,6 +541,8 @@ class DraftStore:
 
     def _save_asset_locked(self, draft_id: str, relative: str, encoded: str) -> dict[str, Any]:
         clean = safe_asset_path(relative)
+        if Path(clean).suffix.lower() not in ALLOWED_IMAGE_EXTS:
+            raise EditorError('图片上传仅支持 JPG、PNG、GIF 和 WebP')
         try:
             data = base64.b64decode(encoded, validate=True)
         except (ValueError, TypeError) as exc:
@@ -562,6 +577,8 @@ class DraftStore:
         images_dir = folder / "images"
         if images_dir.is_dir():
             candidates.extend(images_dir.rglob("*"))
+        assets_dir=folder/'assets'
+        if assets_dir.is_dir():candidates.extend(assets_dir.rglob('*'))
         for path in candidates:
             if not path.is_file():
                 continue
@@ -577,6 +594,7 @@ class DraftStore:
                     "size": stat.st_size,
                     "content_type": mimetypes.guess_type(path.name)[0]
                     or "application/octet-stream",
+                    "kind": ('image' if not clean.startswith('assets/') else __import__('folder_import').attachment_kind(clean)),
                 }
             )
         return sorted(
@@ -769,7 +787,12 @@ class WechatPublisher:
             relative = source[len(prefix) :]
         else:
             relative = source[2:] if source.startswith("./") else source
-        return store.asset_path(draft_id, relative)
+        path=store.asset_path(draft_id, relative)
+        if path.suffix.lower() not in ALLOWED_IMAGE_EXTS or path.stat().st_size>MAX_IMAGE_BYTES:
+            raise EditorError('公众号正文图片必须是有效的 JPG、PNG、GIF 或 WebP 图片')
+        with path.open('rb') as stream:header=stream.read(16)
+        if not _looks_like_image(header):raise EditorError('公众号正文图片内容无效，请检查附件类型')
+        return path
 
     def _replace_images(
         self,

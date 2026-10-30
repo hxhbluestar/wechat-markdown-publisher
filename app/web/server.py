@@ -1321,6 +1321,47 @@ class Handler(SimpleHTTPRequestHandler):
             parsed = urllib.parse.urlparse(self.path)
             path = urllib.parse.unquote(parsed.path)
             self.require_editor_auth()
+            if path in ('/api/editor/import-folder','/api/editor/import-package'):
+                from folder_import import MAX_FOLDER_BYTES,prepare_folder_import
+                is_folder=path.endswith('import-folder')
+                query=urllib.parse.parse_qs(parsed.query)
+                if self.headers.get('Content-Type','').split(';')[0].strip().lower()!='application/zip':
+                    self.close_connection=True
+                    raise EditorError('文件夹上传格式必须是 application/zip',415)
+                try:length=int(self.headers.get('Content-Length','0'))
+                except ValueError:length=0
+                if not 0<length<=MAX_FOLDER_BYTES:
+                    self.close_connection=True
+                    raise EditorError('文章文件夹总大小必须在 1 字节到 256 MiB 之间',413)
+                if is_folder and len(query.get('entry',[]))!=1:
+                    self.close_connection=True
+                    raise EditorError('请选择一篇 Markdown 正文')
+                previous_timeout=self.connection.gettimeout()
+                try:
+                    self.connection.settimeout(60)
+                    data=self.rfile.read(length)
+                    if len(data)!=length:raise EditorError('文件夹上传不完整，请重新选择上传')
+                    filename=query['entry'][0] if is_folder else query.get('filename',['article-package.zip'])[0]
+                    prepared=prepare_folder_import(data,filename,query.get('folder',[''])[0]) if is_folder else prepare_import(filename,data,kind='zip')
+                    duplicates=[]
+                    if not is_folder:
+                        fingerprint=prepared['metadata']['import_fingerprint'];source_url=prepared['metadata'].get('source_url')
+                        for item in DRAFT_STORE.list():
+                            existing=DRAFT_STORE.get(item['id']);metadata=existing['metadata']
+                            if metadata.get('import_fingerprint')==fingerprint or (source_url and metadata.get('source_url')==source_url) or existing['content']==prepared['content']:
+                                duplicates.append({'id':item['id'],'title':item['title']})
+                        if query.get('preview_only',[''])[0]=='1':
+                            return self.send_json({'title':prepared['title'],'report':prepared['report'],'duplicates':duplicates,'preview_content':prepared['content'][:512*1024]})
+                        if duplicates and query.get('allow_duplicate',[''])[0]!='1':
+                            return self.send_json({'error':'已存在相同来源或内容的稿件；确认后可创建新版本副本','duplicates':duplicates,'report':prepared['report']},409)
+                    draft=DRAFT_STORE.create_prepared(prepared['content'],prepared['metadata'],filename,
+                        assets=prepared['assets'],source_original=prepared['source_original'],report=prepared['report'],asset_relations=prepared.get('asset_relations',()))
+                    return self.send_json({'draft':draft,'report':prepared['report'],'duplicates':duplicates},201)
+                except ArticleImportError as exc:return self.send_json({'error':str(exc),'report':getattr(exc,'report',{})},400)
+                except TimeoutError:
+                    self.close_connection=True
+                    raise EditorError('文件夹上传超时，请检查连接后重试',408)
+                finally:self.connection.settimeout(previous_timeout)
             payload = self.read_json_body()
 
             if path == "/api/wechat/network/check":
@@ -1572,6 +1613,10 @@ class Handler(SimpleHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = urllib.parse.unquote(parsed.path)
+        asset_match=re.fullmatch(r'/api/editor/drafts/(?P<draft>[^/]+)/assets/(?P<asset>.+)',path)
+        if asset_match:
+            try:return self.send_draft_asset(DRAFT_STORE.asset_path(asset_match['draft'],asset_match['asset']),head_only=True)
+            except EditorError as exc:return self.send_error_json(exc.status,str(exc))
         if path.startswith("/resource/"):
             return self.send_resource(path.rsplit("/", 1)[-1], head_only=True)
         if path.startswith("/cover/"):
@@ -1652,16 +1697,44 @@ class Handler(SimpleHTTPRequestHandler):
         if not resolved.is_file() or DRAFTS_DIR not in resolved.parents:
             return self.send_error_json(404, "素材不存在")
         size = resolved.stat().st_size
-        mime = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
-        self.send_response(200)
+        from folder_import import attachment_kind,VIDEO_MIMES
+        kind=attachment_kind(resolved.name)
+        mime=(mimetypes.guess_type(resolved.name)[0] or 'application/octet-stream') if kind=='image' else VIDEO_MIMES.get(resolved.suffix.lower(),'application/octet-stream')
+        start,end,status=0,max(0,size-1),200
+        requested=self.headers.get('Range','').strip()
+        if requested:
+            match=re.fullmatch(r'bytes=(\d{0,20})-(\d{0,20})',requested)
+            invalid=not match or not size or (match and not any(match.groups()))
+            if not invalid:
+                first,last=match.groups()
+                if first:start=int(first);end=int(last) if last else size-1
+                else:
+                    length=int(last);start=max(0,size-length);end=size-1
+                    invalid=length<=0
+                invalid=invalid or start>=size or end<start
+            if invalid:
+                self.send_response(416)
+                self.send_header('Content-Range',f'bytes */{size}')
+                self.send_header('Content-Length','0')
+                self.end_headers()
+                return
+            end=min(end,size-1);status=206
+        length=max(0,end-start+1) if size else 0
+        self.send_response(status)
         self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(size))
+        self.send_header("Content-Length", str(length))
+        self.send_header('Accept-Ranges','bytes')
+        if status==206:self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
+        if kind=='attachment':self.send_header('Content-Disposition',"attachment; filename*=UTF-8''"+urllib.parse.quote(resolved.name))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if not head_only and self.command != "HEAD":
             with resolved.open("rb") as stream:
-                while chunk := stream.read(128 * 1024):
-                    self.wfile.write(chunk)
+                stream.seek(start);remaining=length
+                while remaining:
+                    chunk=stream.read(min(128*1024,remaining))
+                    if not chunk:break
+                    self.wfile.write(chunk);remaining-=len(chunk)
 
     def send_file_safe(
         self,

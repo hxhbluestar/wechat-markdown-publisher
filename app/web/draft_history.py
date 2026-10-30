@@ -70,7 +70,7 @@ def _asset_relative(value: str) -> str:
         for part in parts
     ):
         raise ValueError("Unsafe asset path")
-    if not (len(parts) >= 2 and parts[0] == "images") and not (
+    if not (len(parts) >= 2 and parts[0] in ("images", "assets")) and not (
         len(parts) == 1 and re.fullmatch(r"cover\.(?:png|jpe?g|gif|webp)", value, re.I)
     ):
         raise ValueError("Assets must be images/ paths or cover images")
@@ -254,7 +254,7 @@ class DraftHistory:
             assets = []
             for path in _tree_files(folder):
                 relative = path.relative_to(folder).as_posix()
-                if not relative.startswith("images/") and not re.fullmatch(r"cover\.(?:png|jpe?g|gif|webp)", relative, re.I):
+                if not relative.startswith(("images/", "assets/")) and not re.fullmatch(r"cover\.(?:png|jpe?g|gif|webp)", relative, re.I):
                     continue
                 _asset_relative(relative)
                 data = path.read_bytes()

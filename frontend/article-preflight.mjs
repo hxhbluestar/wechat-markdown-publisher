@@ -438,6 +438,13 @@ export function analyzeArticle({
       .map((asset) => [asset.path, asset]),
   );
   const references = imageReferences(source, mask);
+  const localAttachments=[...source.matchAll(/(?<!!)\[[^\]\r\n]*\]\(\s*(?:<([^>]+)>|([^\s)]+))/g),...source.matchAll(/<(?:video|audio|source)\b[^>]*\bsrc=["']([^"']+)["']/gi)];
+  for(const match of localAttachments) {
+    if(mask[match.index])continue;
+    const path=canonicalAssetPath(match[1]||match[2]||'',draftId,assets);
+    if(!path.startsWith('assets/'))continue;
+    add({code:'local-attachment-publish',severity:'blocker',message:'本地视频或附件已随稿保存，但公众号无法访问本机附件；请在公众号后台插入视频或附件后发布。',from:match.index,to:match.index+match[0].length});
+  }
   for (const ref of references) {
     const position = { from: ref.from, to: ref.to };
     if (ref.unresolved)
@@ -462,11 +469,15 @@ export function analyzeArticle({
         ...position,
       });
     else {
-      const path = canonicalAssetPath(ref.source, draftId);
+      const path = canonicalAssetPath(ref.source, draftId, assets);
+      if(assetMap.get(path)?.kind==='video') {
+        add({code:'local-attachment-publish',severity:'blocker',message:'视频已随稿保存；请在公众号后台插入视频后发布。',...position});
+        continue;
+      }
       if (
         !IMAGE_SUFFIX.test(path) ||
         /(?:^|\/)\.\.(?:\/|$)|[:\0\r\n\\]/.test(path) ||
-        !/^(?:images\/|cover\.)/.test(path)
+        !/^(?:images\/|assets\/|cover\.)/.test(path)
       )
         add({
           code: "image-unsupported",
